@@ -220,7 +220,7 @@ def main():
                 files={
                     "file": (
                         "synthetic-recovery.csv",
-                        b"trading_date,close\n2026-01-01,10.1234567890\n2026-01-02,12\n",
+                        b"trading_date,close\n2026-01-01,10.1234567890\n2026-01-02,12\n2026-01-03,11\n",
                         "text/csv",
                     )
                 },
@@ -229,6 +229,34 @@ def main():
             )
             if response.status_code != 201:
                 raise RuntimeError("Synthetic import failed")
+            second_listing = create(
+                client,
+                "instruments",
+                {
+                    "exchange": "XNSE",
+                    "symbol": "SYNTH_RECOVERY_SILVER",
+                    "name": "SYNTHETIC TEST ONLY silver recovery fixture",
+                    "metal": "SILVER",
+                    "currency": "INR",
+                },
+            )
+            response = client.post(
+                "/api/v1/import-batches",
+                files={
+                    "file": (
+                        "synthetic-silver-recovery.csv",
+                        b"trading_date,close\n2026-01-01,20\n2026-01-02,21\n2026-01-03,22\n",
+                        "text/csv",
+                    )
+                },
+                data={
+                    "metadata_json": json.dumps({**metadata, "instrument_id": second_listing["id"]})
+                },
+                headers={"Idempotency-Key": str(uuid4())},
+            )
+            if response.status_code != 201:
+                raise RuntimeError("Synthetic silver recovery import failed")
+
         checked("Synthetic schema and all domain entities seeded")
 
         def snapshot(name):
@@ -267,24 +295,69 @@ def main():
                 "orphan_observations": orphans,
             }
 
+        def stable_payload(value):
+            if isinstance(value, dict):
+                return {
+                    key: stable_payload(item)
+                    for key, item in value.items()
+                    if key not in {"request_id", "served_at", "computed_at"}
+                }
+            if isinstance(value, list):
+                return [stable_payload(item) for item in value]
+            return value
+
         def known_query(name):
             with client_for(name) as client:
-                response = client.get(
-                    "/api/v1/instruments/" + listing["id"] + "/history",
-                    params={
-                        "source_id": provider["id"],
-                        "basis": "RAW_CLOSE",
+                params = {
+                    "source_id": provider["id"],
+                    "basis": "RAW_CLOSE",
+                    "assessment_as_of": "2026-01-03T00:00:00Z",
+                }
+                base = "/api/v1/instruments/" + listing["id"]
+                payloads = {}
+                for endpoint in ("history", "chart", "SMA", "EMA", "RSI"):
+                    url = base + (
+                        "/indicators" if endpoint in {"SMA", "EMA", "RSI"} else "/" + endpoint
+                    )
+                    query = {
+                        **params,
+                        **(
+                            {"indicator": endpoint, "n": 2}
+                            if endpoint in {"SMA", "EMA", "RSI"}
+                            else {}
+                        ),
+                    }
+                    response = client.get(url, params=query)
+                    if response.status_code != 200:
+                        raise RuntimeError("Known research query failed")
+                    payload = response.json()
+                    if endpoint == "history" and payload["data"][0]["close"] != "10.1234567890":
+                        raise RuntimeError("Exact-price query mismatch")
+                    if endpoint in {"SMA", "EMA", "RSI"} and not any(
+                        v["value"] is not None for v in payload["data"]["values"]
+                    ):
+                        raise RuntimeError("Recovery indicator fixture is not seeded")
+                    payloads[endpoint] = stable_payload(payload)
+                response = client.post(
+                    "/api/v1/comparisons",
+                    json={
+                        "series": [
+                            {
+                                "instrument_id": item["id"],
+                                "source_id": provider["id"],
+                                "price_basis": "RAW_CLOSE",
+                            }
+                            for item in (listing, second_listing)
+                        ],
+                        "start": "2026-01-01",
+                        "end": "2026-01-03",
                         "assessment_as_of": "2026-01-03T00:00:00Z",
                     },
                 )
-                if response.status_code != 200:
-                    raise RuntimeError("Known history query failed")
-                payload = response.json()
-                for key in ("request_id", "served_at"):
-                    payload["meta"].pop(key, None)
-                if payload["data"][0]["close"] != "10.1234567890":
-                    raise RuntimeError("Exact-price query mismatch")
-                return fingerprint(payload)
+                if response.status_code != 200 or response.json()["data"]["status"] != "AVAILABLE":
+                    raise RuntimeError("Known recovery comparison failed")
+                payloads["comparison"] = stable_payload(response.json())
+                return fingerprint(payloads)
 
         before, before_query = snapshot(source), known_query(source)
         report.update(source=before, known_source_query_sha256=before_query)
@@ -363,7 +436,9 @@ def main():
         report.update(restored=after, known_restored_query_sha256=after_query)
         if before != after or before_query != after_query:
             raise RuntimeError("Restored data/schema/query differs from source")
-        checked("All table counts/hashes, schema objects, provenance and exact-price query match")
+        checked(
+            "All table counts/hashes, schema objects, provenance and history/chart/indicator/comparison queries match"
+        )
         try:
             with psycopg.connect(dbname=target, **credentials) as conn:
                 conn.execute("UPDATE price_observations SET close=close")
@@ -375,10 +450,18 @@ def main():
             success=True,
             source=before,
             restored=after,
-            known_history_sha256=before_query,
+            known_research_sha256=before_query,
+            research_endpoints_verified=[
+                "history",
+                "chart",
+                "SMA(2)",
+                "EMA(2)",
+                "RSI(2)",
+                "price-only comparison",
+            ],
             limitations=[
                 "SYNTHETIC_TEST only; no application data or failover exercised",
-                "Indicators not implemented and not verified by recovery",
+                "Owner-data restore/cutover and retention policy not exercised",
             ],
         )
     except Exception as exc:

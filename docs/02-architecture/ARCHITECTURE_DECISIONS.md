@@ -1,28 +1,30 @@
-# Architecture Decisions - Proposed ADR Register
+# Architecture Decisions - Scoped ADR Register
 
-**Version/date:** 0.1 - Proposed; 2026-11-01 (Asia/Calcutta).  
-**Authority:** Human Step 2 architecture/design task; documentation only.  
+**Version/date:** 0.2 - Scoped approvals recorded; 2026-11-02 (Asia/Calcutta).
+
+**Authority:** Step 2 design record, followed by the human Step 3 implementation/security grant and Step 4 research-dashboard grant; see the dated scoped dispositions and [implementation status](../04-planning/VS-01_IMPLEMENTATION_STATUS.md).
+
 **Baseline:** [REQ-BL-1.0](../01-requirements/REQUIREMENTS_BASELINE.md), annotated tag `requirements-v1.0`, commit `e10eef55fb21368e53dbe4599006b620cbb48566`. Tag and unchanged source content verified before authoring.  
-**Status:** Architecture/design recommendations are Proposed. No baseline requirement status, maturity, priority, applicability or increment is changed. No implementation or spike is authorized.
+**Status:** The original proposals below are retained with the dated Step 3/4 scoped dispositions. ADR-06/07 and research comparison ADR-10 are approved by Step 4; implementation authority is bounded by that human grant. No baseline requirement status, maturity, priority, applicability or increment is changed.
 
 ## 1. Decision authority
 
-All ten ADRs below are **Proposed**. None modifies D-01 through D-16 or promotes a requirement. Architecture approval alone does not approve Proposed/Open governing behavior or authorize code. Existing Python/FastAPI/PostgreSQL direction is an input constraint, not an undecided replacement.
+The ADRs originated as Step 2 proposals. The table and dated records below state their current scoped approval; individual unrevised Proposed labels are historical authoring labels. None modifies D-01 through D-16 or promotes a requirement. Architecture approval alone does not approve Proposed/Open governing behavior or authorize code. Existing Python/FastAPI/PostgreSQL direction is an input constraint, not an undecided replacement.
 
 A scoped human approval must identify ADR/DC IDs and applicable requirement behavior; record it before implementation. Exact library/runtime versions remain a compatibility/lockfile task under later implementation authorization.
 
 | ADR | Recommendation | Status |
 | --- | --- | --- |
-| [ADR-01](#adr-01) | Modular monolith and execution boundaries | Proposed |
-| [ADR-02](#adr-02) | React TypeScript UI and Vite | Proposed |
-| [ADR-03](#adr-03) | PostgreSQL access and migrations | Proposed |
-| [ADR-04](#adr-04) | Bounded CSV-first atomic imports | Proposed |
-| [ADR-05](#adr-05) | Provenance and immutable observation identity | Proposed |
-| [ADR-06](#adr-06) | Deterministic research indicators and numeric contracts | Proposed |
-| [ADR-07](#adr-07) | Local Plotly chart rendering | Proposed |
-| [ADR-08](#adr-08) | Layered automated verification | Proposed |
-| [ADR-09](#adr-09) | Local Compose security and reproducible operations | Proposed |
-| [ADR-10](#adr-10) | Research data-quality and comparison semantics | Proposed |
+| [ADR-01](#adr-01) | Modular monolith and execution boundaries | Approved - Step 3 scope |
+| [ADR-02](#adr-02) | React TypeScript UI and Vite | Approved - Step 3 scope |
+| [ADR-03](#adr-03) | PostgreSQL access and migrations | Approved - Step 3 scope |
+| [ADR-04](#adr-04) | Bounded CSV-first atomic imports | Approved - qualified real data conditional |
+| [ADR-05](#adr-05) | Provenance and immutable observation identity | Approved - Step 3 scope |
+| [ADR-06](#adr-06) | Deterministic research indicators and numeric contracts | Approved - Step 4 scope |
+| [ADR-07](#adr-07) | Local Plotly chart rendering | Approved - Step 4 scope |
+| [ADR-08](#adr-08) | Layered automated verification | Approved - Step 3 scope |
+| [ADR-09](#adr-09) | Local Compose security and reproducible operations | Conditional - documented local controls |
+| [ADR-10](#adr-10) | Research data-quality and comparison semantics | Approved - Step 4 scope |
 
 <a id="adr-01"></a>
 
@@ -93,7 +95,7 @@ A scoped human approval must identify ADR/DC IDs and applicable requirement beha
 
 ## ADR-06 - Deterministic research indicators and numeric contracts
 
-- **Approval status:** Proposed; no human adoption recorded.
+- **Approval status:** Approved for the bounded VS-01 research scope by human Step 4 on 2026-11-02. No strategy/trade authority.
 - **Requirement drivers:** [REQ-03-001](../01-requirements/STAGE_1_REQUIREMENTS_BACKLOG.md#req-03-001), [REQ-03-007](../01-requirements/STAGE_1_REQUIREMENTS_BACKLOG.md#req-03-007), [REQ-06-002](../01-requirements/STAGE_1_REQUIREMENTS_BACKLOG.md#req-06-002), [REQ-06-006](../01-requirements/STAGE_1_REQUIREMENTS_BACKLOG.md#req-06-006).
 - **Context:** VS-01 requires useful research indicators but not strategy triggers.
 - **Recommended choice:** Recommend SMA(n), SMA-seeded EMA(n) and Wilder RSI(n), explicit n, ordered daily closes and contract-defined warm-up/gaps. Store input decimals exactly; compute with Python Decimal precision 34 and ROUND_HALF_EVEN; serialize derived values to 12 fractional places with explicit rounding and version references.
@@ -106,7 +108,7 @@ A scoped human approval must identify ADR/DC IDs and applicable requirement beha
 
 ## ADR-07 - Local Plotly chart rendering
 
-- **Approval status:** Proposed; no human adoption recorded.
+- **Approval status:** Approved for the bounded VS-01 research scope by human Step 4 on 2026-11-02. No strategy/trade authority.
 - **Requirement drivers:** [REQ-04-001](../01-requirements/STAGE_1_REQUIREMENTS_BACKLOG.md#req-04-001), [REQ-04-013](../01-requirements/STAGE_1_REQUIREMENTS_BACKLOG.md#req-04-013), [REQ-03-008](../01-requirements/STAGE_1_REQUIREMENTS_BACKLOG.md#req-03-008).
 - **Context:** Price/indicator overlays and source-aware comparison require interactive but modest visualizations.
 - **Recommended choice:** Recommend locally bundled Plotly.js React integration, line charts first, lazy-loaded chart bundle and accessible tabular alternative.
@@ -145,7 +147,7 @@ A scoped human approval must identify ADR/DC IDs and applicable requirement beha
 
 ## ADR-10 - Research data-quality and comparison semantics
 
-- **Approval status:** Proposed; no human adoption recorded.
+- **Approval status:** Approved for the bounded VS-01 research scope by human Step 4 on 2026-11-02. No strategy/trade authority.
 - **Requirement drivers:** [REQ-02-013](../01-requirements/STAGE_1_REQUIREMENTS_BACKLOG.md#req-02-013), [REQ-03-008](../01-requirements/STAGE_1_REQUIREMENTS_BACKLOG.md#req-03-008), [REQ-03-009](../01-requirements/STAGE_1_REQUIREMENTS_BACKLOG.md#req-03-009), [REQ-04-013](../01-requirements/STAGE_1_REQUIREMENTS_BACKLOG.md#req-04-013).
 - **Context:** Missing sessions, corporate actions and asynchronous endpoints can make apparently precise charts misleading.
 - **Recommended choice:** Recommend no filling; flag unknown calendars/publication, break known discontinuities for indicators, require explicit known basis for derived metrics, and compare same-currency/basis series on common dates only.
@@ -185,3 +187,10 @@ No paid service, account, broker connection or dataset retrieval was attempted. 
 ## 4. Human approval package
 
 Approve/reject ADR-01..10 as a bundle or identify exceptions; approve the scoped DC-01..09 behaviors and affected requirement dispositions separately from global parent statuses. Resolve [SQ-01..07](../04-planning/VS-01_IMPLEMENTATION_BACKLOG.md#approval-package). Then provide explicit implementation authorization for the bounded work items. Do not interpret this document or a compatible preferred stack as approval.
+
+
+## Step 4 scoped approval record - 2026-11-02
+
+Human Step 4 approves ADR-06 (SMA/EMA n>=1, Wilder RSI n>=2, precision 34/HALF_EVEN/12-place derived strings), ADR-07 (locally bundled lazy Plotly) and remaining ADR-10 price-only comparison semantics. Prior Step 3 approvals remain recorded in IMPLEMENTATION_STATUS. These dated scoped decisions supersede historical Proposed labels only for the approved behaviors; D-01..16 and the original requirements baseline remain untouched.
+
+SQ-04/05 are resolved by the explicit Step 4 conventions; SQ-07 covers WI-07, WI-08, WI-10 and applicable VS-01 WI-11/12 verification/operations, in backlog dependency order. SQ-01 real-data qualification stays blocked. No release acceptance, commit, tag, external data acquisition, trading/portfolio/AI/broker feature is authorized. Calculation readiness and completed verification remain separate.

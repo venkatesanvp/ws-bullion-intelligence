@@ -31,6 +31,7 @@ from .models import (
     now,
 )
 from .queries import find, series, series_meta
+from .research import register_research
 from .schemas import (
     ImportMetadata,
     InstrumentCreate,
@@ -97,7 +98,7 @@ def get_db(request: Request):
             503, "DEPENDENCY_NOT_READY", "Database is unavailable or migrations are required."
         )
     with engine.connect() as conn:
-        if request.method == "GET":
+        if request.method == "GET" or request.url.path == "/api/v1/comparisons":
             conn = conn.execution_options(isolation_level="REPEATABLE READ")
         with Session(bind=conn, expire_on_commit=False) as db:
             yield db
@@ -652,6 +653,7 @@ def create_app(settings: Settings | None = None):
             request, series_meta(db, instrument, source, basis, start, end, assessment_as_of)
         )
 
+    register_research(router, get_db, response)
     app.include_router(router)
     return app
 

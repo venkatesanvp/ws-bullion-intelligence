@@ -1,6 +1,6 @@
 # Proposed next VS-01 implementation package
 
-**Proposal only; not authorized or implemented.** Current Step 3 authorizes verification/remediation/checkpoint preparation, not the capabilities below. D-01..16 and REQ-BL-1.0 classifications remain unchanged. Full VS-01 is not accepted.
+**Historical Step 3 proposal, adopted within the human Step 4 scope on 2026-11-02.** The dated architecture/design records and current implementation status govern approval and evidence; the original proposal below is retained for traceability. RSI requires n>=2 under Step 4. D-01..16 and REQ-BL-1.0 classifications remain unchanged. Full VS-01 is not accepted.
 
 ## Bounded capability and approval package
 
@@ -11,7 +11,7 @@
 | Locally bundled price/indicator/comparison charts and accessible tables | WI-10; REQ-04-001/005/006/013; VS01-T-02/09/10/14/16/18 | ADR-07 (Plotly candidate and package/license/bundle review), ADR-06 and remaining ADR-10; chart portions of DC-07/08, DC-05/06; applicable SQ-04/05/07. |
 | Remaining integrated and operational acceptance | Remaining WI-11/12; VS01-T-01..23 as applicable | Scoped ADR-08/09/DC-09 extensions if required; SQ-01 for real data, SQ-06 final local recovery/retention disposition and an explicit SQ-07 grant for remaining work. Current synthetic recovery evidence does not waive real-data/final handover gates. |
 
-Dependencies: WI-07 follows existing WI-06; WI-08 follows WI-06/07; WI-10 follows WI-07/08/09; full WI-11 follows required capabilities and qualified real samples; final WI-12 follows integrated acceptance. A chart-only subpackage would need its own bounded approval rather than silently changing this order.
+Dependencies: WI-07 follows existing WI-06; WI-08 follows WI-06 (the actual backlog dependency); WI-10 follows WI-07/08/09; full WI-11 follows required capabilities and qualified real samples; final WI-12 follows integrated acceptance. A chart-only subpackage would need its own bounded approval rather than silently changing this order.
 
 ## Proposed contracts to review
 

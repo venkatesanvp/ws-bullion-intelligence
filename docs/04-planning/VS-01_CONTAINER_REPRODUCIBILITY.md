@@ -36,3 +36,10 @@ docker compose up --build -d --wait
 Use the same source revision, lockfiles and digest references. Do not delete application volumes. A reviewed dependency/image update must deliberately change the relevant lock/digest, rerun scans and applicable tests, then retain the resulting evidence. Digest pinning fixes content; it does not provide automatic security updates.
 
 The verification establishes reproducible dependency selection and startup on the tested platform. It does not assert byte-for-byte identical built-image manifests (build metadata may differ), registry availability forever, another workstation/architecture's readiness, OS-package vulnerability clearance or disaster recovery of actual owner data.
+
+
+## Step 4 re-verification - 2026-11-02
+
+Compose, Dockerfiles, Python lock and immutable image references are unchanged from checkpoint `5f0399b`. The frontend lock now includes locally bundled Plotly and its development type declarations. Rebuilt startup and a subsequent `docker compose up -d --wait` passed with the existing application volume preserved. API/database are healthy, migration exited 0, and the UI responds HTTP 200 (UI has no Docker HEALTHCHECK). An initial reporting probe assumed every service had a healthcheck; the corrected probe uses the actual service controls and HTTP readiness, with original result retained in ignored evidence.
+
+`artifacts/step4-runtime-verification.json` records current source-input SHA-256 hashes, UI/live/ready authorization checks, loopback-only ports, unpublished application DB, and absence of the actual local token/password from runtime logs and the production frontend. Synthetic Decimal reference vectors passed inside the rebuilt Linux API; its 28-package dependency audit has zero findings/skips. The disposable test DB was stopped after verification; application DB/API/UI remain running. Extended isolated recovery verifies the new research outputs without restoring over active data. Original provenance/platform/build reproducibility limitations above still apply.

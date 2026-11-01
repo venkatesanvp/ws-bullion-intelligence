@@ -1,8 +1,10 @@
 import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ResearchDashboard from './ResearchDashboard';
+import ComparisonPanel from './ComparisonPanel';
 import { allPages, ApiError, Batch, Call, client, Instrument, Issue, Observation, SeriesMeta, Source, Watchlist } from './api';
 
-type Tab = 'History & quality' | 'CSV imports' | 'Instruments & watchlists' | 'Source qualification';
-const tabs: Tab[] = ['History & quality', 'CSV imports', 'Instruments & watchlists', 'Source qualification'];
+type Tab = 'Research dashboard' | 'ETF comparisons' | 'History & quality' | 'CSV imports' | 'Instruments & watchlists' | 'Source qualification';
+const tabs: Tab[] = ['Research dashboard', 'ETF comparisons', 'History & quality', 'CSV imports', 'Instruments & watchlists', 'Source qualification'];
 const json = (value: unknown) => JSON.stringify(value);
 const describe = (error: unknown) => error instanceof ApiError ? error.code + ': ' + error.message : error instanceof Error ? error.message : 'An unexpected error occurred.';
 const stamp = (value: string | null) => value ? value.replace('T', ' ').replace('Z', ' UTC') : 'Unknown';
@@ -49,6 +51,7 @@ function Workbench({ token }: { token: string }) {
   const [instrumentId, setInstrumentId] = useState('');
   const [sourceId, setSourceId] = useState('');
   const [basis, setBasis] = useState('RAW_CLOSE');
+  const [researchMetal, setResearchMetal] = useState('ALL');
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -72,11 +75,14 @@ function Workbench({ token }: { token: string }) {
     <nav className="tabs" aria-label="Workspace views">{tabs.map(t => <button key={t} aria-current={tab === t ? 'page' : undefined} onClick={() => setTab(t)}>{t}</button>)}</nav>
     {error && <div role="alert" className="notice error">{error}<button className="text-button" onClick={() => { setError(''); refresh().catch(e => setError(describe(e))); }}>Retry connection</button></div>}
     {busy && <div role="status" className="loading">Updating workspace…</div>}
-    {(tab === 'History & quality' || tab === 'CSV imports') && <section className="card selectors">
-      <Field label="ETF listing"><select value={instrumentId} onChange={e => setInstrumentId(e.target.value)}><option value="">Select listing</option>{instruments.map(i => <option key={i.id} value={i.id}>{i.symbol} · {i.exchange} · {i.metal}{!i.active ? ' · inactive' : ''}</option>)}</select></Field>
+    {(tab === 'History & quality' || tab === 'CSV imports' || tab === 'Research dashboard') && <section className="card selectors">
+      {tab === 'Research dashboard' && <Field label="Research metal filter"><select value={researchMetal} onChange={e => { const metal = e.target.value; setResearchMetal(metal); if (metal !== 'ALL' && selected?.metal !== metal) setInstrumentId(''); }}><option value="ALL">Gold and Silver</option><option value="GOLD">Gold</option><option value="SILVER">Silver</option></select></Field>}
+      <Field label="ETF listing"><select value={instrumentId} onChange={e => setInstrumentId(e.target.value)}><option value="">Select listing</option>{instruments.filter(i => tab !== 'Research dashboard' || researchMetal === 'ALL' || i.metal === researchMetal).map(i => <option key={i.id} value={i.id}>{i.symbol} · {i.exchange} · {i.metal}{!i.active ? ' · inactive' : ''}</option>)}</select></Field>
       <Field label="Data source"><select value={sourceId} onChange={e => setSourceId(e.target.value)}><option value="">Select source</option>{sources.map(s => <option key={s.id} value={s.id}>{s.label} · {s.profile.data_class} · {s.qualification}</option>)}</select></Field>
       <Field label="Price basis"><select value={basis} onChange={e => setBasis(e.target.value)}><option value="RAW_CLOSE">Raw close</option><option value="PROVIDER_ADJUSTED">Provider adjusted</option><option value="UNKNOWN">Unknown basis</option></select></Field>
     </section>}
+    {tab === 'Research dashboard' && <ResearchDashboard key={instrumentId + sourceId + basis + revision} api={api} instrument={selected} source={source} basis={basis}/>}
+    {tab === 'ETF comparisons' && <ComparisonPanel key={revision} api={api} instruments={instruments} sources={sources}/>}
     {tab === 'History & quality' && <History key={instrumentId + sourceId + basis + revision} api={api} instrument={selected} source={source} basis={basis}/>}
     {tab === 'CSV imports' && <Imports key={instrumentId + sourceId + basis} api={api} instrument={selected} source={source} basis={basis} refreshed={refresh}/>}
     {tab === 'Instruments & watchlists' && <Catalog instruments={instruments} watchlists={watchlists} mutate={mutate} busy={busy}/>}

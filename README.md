@@ -1,68 +1,48 @@
-# Bullion Intelligence — VS-01 data workbench
+# Bullion Intelligence - VS-01 research workbench
 
-A local Gold/Silver ETF daily-data inspection application. This increment implements the human-authorized watchlist, qualified CSV ingestion, PostgreSQL history/provenance and quality workflows. The full VS-01 and R1 release are not complete.
+Local Gold/Silver ETF research: configurable listings/watchlists, qualified CSV ingestion, exact PostgreSQL history/provenance, quality inspection, price charts, SMA/EMA/Wilder RSI and common-date price-only comparisons. The approved software scope is implemented and verified with labeled synthetic fixtures. **Full VS-01/R1 acceptance remains incomplete.**
 
-[Scoped approval and verification](docs/04-planning/VS-01_IMPLEMENTATION_STATUS.md) · [Requirements baseline](docs/01-requirements/REQUIREMENTS_BASELINE.md) · [Design contracts](docs/03-design/VS-01_DETAILED_DESIGN.md)
+[Current implementation status](docs/04-planning/VS-01_IMPLEMENTATION_STATUS.md) | [Step 4 completion and proposed checkpoint](docs/04-planning/VS-01_STEP4_COMPLETION.md) | [Requirements baseline](docs/01-requirements/REQUIREMENTS_BASELINE.md)
 
 ## Local startup
 
-Prerequisites: Docker Desktop with its Linux engine running (WSL 2 on this Windows workstation). For local development/tests: Python 3.13, uv, Node 22 and npm. Application secrets stay in ignored `.env`; do not paste them into issues, commits or screenshots.
-
-From the repository root:
+Prerequisites: Docker Desktop with its Linux engine running (WSL 2 on this Windows workstation). Development/tests also use Python 3.13, uv, Node 22 and npm.
 
 ```powershell
 python scripts/configure_local.py
 docker compose up --build -d --wait
 ```
 
-The configuration script creates random local secrets and refuses to overwrite an existing file. Open `.env` locally, copy only the `LOCAL_APP_TOKEN` value into the access gate, then close the file.
+The configuration script generates local secrets and refuses to overwrite an existing `.env`. Open that ignored file locally, copy `LOCAL_APP_TOKEN` into the access gate, then close the file. UI: http://127.0.0.1:5173. API liveness: http://127.0.0.1:8000/api/v1/health/live. Readiness/data APIs require the bearer token; mutating requests also require the configured local Origin. The token stays in memory and clears on reload/lock; it is absent from the frontend build.
 
-- UI: http://127.0.0.1:5173
-- API liveness: http://127.0.0.1:8000/api/v1/health/live
-- Readiness and every data API require the local bearer token.
-- UI/API host ports bind only to loopback. The application database has no published host port.
-- Migration service runs Alembic revision `0001_market_workbench` before API startup.
-- `docker compose stop` preserves the named database volume. Do not use volume deletion/reset commands on application data.
-- If Docker is not on PATH in PowerShell, replace `docker` with `& 'C:\Program Files\Docker\Docker\resources\bin\docker.exe'`.
+UI/API ports publish only to loopback; the application DB has no host port. Alembic revision `0001_market_workbench` runs before API startup. `docker compose stop` preserves the named application volume. Never delete/reset that volume for tests. If Docker is not on PATH, use `& 'C:\Program Files\Docker\Docker\resources\bin\docker.exe'`.
 
-Compose startup and migrations, 62 backend tests including PostgreSQL integration, six frontend component tests, the production build and one real-backend Chromium workflow passed across 1-2 November 2026. See the verification record for evidence and remaining real-data, capability-approval and final handover gaps; full VS-01/R1 acceptance remains incomplete.
+## Research workflow
 
-## First-use workflow
+1. Configure exchange-specific Gold/Silver listings and watchlist membership in **Instruments & watchlists**. No universe is preselected or endorsed.
+2. Register/review a source in **Source qualification**, with explicit REAL_MARKET or SYNTHETIC_TEST classification, inspected source-use/retention references, four permitted uses and quality profile. Classification cannot be changed to relabel existing history. A recorded assertion is not independent licensing or price verification.
+3. Under **CSV imports**, select listing/source/basis and exact header mapping; import a permitted bounded daily CSV. Review batch counts, row diagnostics and provenance in **History & quality**.
+4. In **Research dashboard**, select the ETF/metal/source/basis and available history or explicit date range. Enable SMA/EMA/RSI, enter each lookback explicitly and apply settings. SMA/EMA overlay the price chart; RSI has a separate panel. Inspect exact values, warm-up/gap reasons, seed dates, input fingerprint, quality and synthetic labels below the plots.
+5. In **ETF comparisons**, select 2-10 distinct eligible listings with explicit sources/bases and dates. Inspect actual common endpoints, price changes, base-100 paths and exact common-date values. Incompatible/insufficient results are explicitly unavailable. These are price-only observations, with no total-return or future-performance claim.
 
-1. Add exchange-specific Gold/Silver ETF listing metadata under **Instruments & watchlists**. No fund universe is preselected or endorsed.
-2. Register a CSV source under **Source qualification**. Choose REAL_MARKET or SYNTHETIC_TEST explicitly. Classification cannot be changed to relabel existing history; register another source instead.
-3. Record reviewed source-use and retention evidence, the four permitted uses, and qualification. An owner-recorded assertion is not independent licensing/sample verification. Actual real ETF samples/permissions remain Open under SQ-01; none are bundled.
-4. Select the exact listing, source and price basis under **CSV imports**. Review the explicit canonical-to-file-header mapping and import one bounded UTF-8 daily CSV.
-5. Inspect terminal batch counts and row diagnostics. A hard error/conflicting value rejects all new observations; existing history is preserved.
-6. Inspect exact decimal prices, original batch/row, dataset/range dates and unknown quality/timing under **History & quality**. Watchlist membership removal does not remove prices.
+No qualified real ETF dataset is bundled or accepted. SQ-01/T-03 remain blocked; do not download/ingest unqualified data. See the [minimum source qualification package](docs/04-planning/VS-01_DATA_QUALIFICATION.md).
 
-The token stays in memory, is cleared by page reload/lock and is not embedded in the frontend build. Mutating API requests require a configured local Origin as well as bearer authentication.
+## Data and numerical contracts
 
-## CSV and quality contract
+- Canonical daily CSV `csv-v1`: required `trading_date` (YYYY-MM-DD) and finite positive `close`; optional coherent complete OHLC, nonnegative integer volume, exact symbol/currency and timezone-aware provider/event instants. Every file header must be explicitly mapped; unrelated fields are rejected without retention.
+- One listing/source/basis per file; exact NUMERIC(24,10) prices serialize as strings. Excess precision is rejected. Original mapped strings, batch and row lineage are retained. Duplicate canonical rows skip; conflicts/hard errors reject the batch atomically. Accepted audit rows are append-only.
+- Bounds: 10 MiB/file, 100,000 CSV rows, 1,024 characters/mapped field, first 1,000 diagnostics with full error count. Lists default 100/max 1,000. History/import/issue cursors are opaque. Complete chart input and indicator prefix are limited to 10,000 observations; excess input is rejected without truncation.
+- SMA/EMA use explicit integer n>=1; RSI n>=2; technical upper bound 10,000. EMA seeds with first-n SMA. Wilder RSI seeds from n price changes; gain-only=100, loss-only=0, both zero unavailable. Local Decimal context 34/HALF_EVEN, derived strings 12 places. No floating-point authoritative financial arithmetic.
+- Indicators use the full eligible prefix before trimming a visible range. Known calendar gaps/declared breaks reset seeds; unknown calendars remain unassessed. No invented prices, dates, fills or publication times.
+- Comparisons use same-currency compatible-basis actual date intersections in an explicit period. Adjusted series require the same recorded adjustment-definition reference; mixed real/synthetic series are unavailable. No dividends or corporate-action adjustments are inferred.
+- Plotly basic is bundled locally and lazy loaded. Coordinates are approximate display values; exact server strings remain in hover/table alternatives. Known breaks/nulls are not connected. Large/unsafe BIGINT volume is unavailable in the browser rather than rounded.
+- Historical CSV ingestion time is not proof of point-in-time market availability. Replay remains unverified. Raw/adjusted/unknown bases stay distinct; quality/freshness remain unknown without explicit evidence/profiles.
 
-- Supported source contract: `csv-v1`; quality evaluator: `quality-v1`.
-- Required mapped fields: `trading_date` in YYYY-MM-DD and finite positive `close`.
-- Optional: coherent complete `open/high/low` trio, nonnegative integer `volume`, exact `symbol/currency`, timezone-aware `provider_published_at/event_time`.
-- Prices are exactly representable NUMERIC(24,10), serialized as strings. Excess precision is rejected without rounding.
-- One instrument/source/basis per file. All file headers must be mapped to allowed canonical fields; unrelated fields are rejected without retention. Mapped raw strings are retained.
-- Technical bounds: 10 MiB file, 100,000 data rows, 1,024 characters per mapped field, first 1,000 diagnostics. Error count retains the full total. General list/history pages default to 100, maximum 1,000; history/import/issue cursors are opaque.
-- CSV rows may be out of order; canonical observations are ordered by trading date, with original row numbers retained.
-- Same date/key and canonical values are exact duplicates; conflicts reject the batch. No observation-update/delete API exists. Database triggers also protect accepted market audit rows.
-- `RAW_CLOSE`, `PROVIDER_ADJUSTED` and `UNKNOWN` remain separate. Adjusted data needs an explicit source adjustment-definition reference; the application does not adjust prices.
-- Unknown calendar, freshness, corporate actions and publication times remain unknown/unassessed. No dates/bars/publication instants are invented.
-- An explicit calendar profile includes reviewed evidence, version, coverage and enumerated sessions. An explicit freshness profile applies only at its recorded timezone-aware as-of instant. No default financial cutoff or holiday inference exists.
-- Browser display never shows an unsafe rounded BIGINT volume as exact; values outside JavaScript's exact integer range are explicitly unavailable in the table. PostgreSQL and the API retain the integer.
-- Historical CSV remains unverified for replay; ingestion time is not proof of point-in-time market availability.
+Import retries use an explicit UUID `Idempotency-Key`. Keep and reuse the identical file/metadata/key after an uncertain response; changed input under that key conflicts. Use **Resolve an interrupted request** or `GET /api/v1/import-batches/by-key/{key}` before retrying. No automatic background job or correction is inferred.
 
-## Retry and recovery
+## Verification and recovery
 
-Each import uses an explicit UUID `Idempotency-Key`. Reuse it with the identical file and metadata if the response is lost. A retry returns the original terminal batch; changed content/metadata under that key returns conflict.
-
-Use **Resolve an interrupted request**, or `GET /api/v1/import-batches/by-key/{request_key}`, before deciding an interrupted request failed. No durable pending job or automatic background retry is invented. A new import key is generated when the selected file/mapping/series changes. Keep the key if the browser must close during an uncertain operation.
-
-## Verification
-
-Install the locked dependencies:
+Install frozen dependencies and Chromium:
 
 ```powershell
 uv sync --frozen
@@ -70,32 +50,39 @@ npm --prefix frontend ci
 npm --prefix frontend exec playwright install chromium
 ```
 
-Run checks that do not need PostgreSQL:
+Run lint/backend units/components/build without PostgreSQL:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/verify_local.py
 ```
 
-After Docker is running, with ports 55433, 8001 and 5173 available:
+For cumulative real PostgreSQL/browser verification, stop the normal UI first so browser port 5173 is free; ports 55433 and 8001 must also be available:
 
 ```powershell
+docker compose stop ui
 .\.venv\Scripts\python.exe scripts/verify_local.py --database --browser
+docker compose up --build -d --wait
 ```
 
-The database option starts only the separate `test-db` service, named `bullion_test`, published on loopback 55433 with tmpfs storage. Tests migrate and truncate that explicitly disposable database; guards refuse nonlocal/non-`_test` targets. They do not reset the application database or its volume. Fixtures are visibly SYNTHETIC_TEST. Browser tests start a separate API on 8001 and a loopback Vite process on 5173; no mocked backend substitutes for the real PostgreSQL workflow.
+Tests use only disposable local `bullion_test` on loopback 55433 with tmpfs; guards refuse nonlocal/non-`_test` targets. Browser tests start a separate API on 8001 and Vite on 5173. They use real PostgreSQL/backend requests and visibly synthetic fixtures. Reports/screenshots/traces stay in ignored `artifacts/` and frontend report directories.
 
-Reports go to ignored `artifacts/` and frontend test-report directories. The dependency locks record application/test package versions; Playwright's package fixes its browser revision. Immutable image digests are recorded in Compose/Dockerfiles, including the uv bootstrap binaries; see the container reproducibility review.
+Final Step 4 run: **114 backend, 16 component and three Chromium tests passed, none failed/skipped**; lint and production build passed. Full/production npm audits and Windows/Linux Python audits found zero known vulnerabilities. Compose rebuilt/repeated startup and synthetic backup/new isolated restore passed. Two backend deprecations and the lazy Plotly chunk-size warning remain; see the completion record for actual evidence and resolved initial failures.
 
-## Source and interface map
+```powershell
+.\.venv\Scripts\python.exe scripts/verify_recovery.py
+```
 
-- `backend/app/`: strict schemas, access boundary, CSV validation/transaction, typed persistence and quality/history queries.
-- `backend/migrations/`: frozen initial Alembic schema and append-only audit guards; destructive downgrade is disabled.
-- `backend/tests/`: parser/access cases plus real-PostgreSQL transaction, concurrency, provenance, cursor and restart checks.
-- `frontend/src/`: local access gate, catalog/watchlists, source review, import outcomes and accessible history table.
-- `frontend/e2e/`: real UI/API/PostgreSQL browser workflow.
-- `scripts/`: exclusive local secret initialization and explicit verification driver.
+[Recovery instructions](docs/05-operations/LOCAL_RECOVERY.md) cover restricted backups, checksum/integrity, restoration into a separate empty test database and table/schema/research-query consistency. Never restore over the active application DB. Synthetic recovery does not establish owner-data cutover, retention or final handover acceptance.
 
-API prefix `/api/v1`:
+## Source and API map
+
+- `backend/app/`: strict input/access/CSV/persistence/quality plus pure Decimal arithmetic and read-only snapshot-consistent research orchestration.
+- `backend/tests/`: independent arithmetic references, parsing/access, actual PostgreSQL transactions/concurrency, provenance, snapshots and research API cases.
+- `frontend/src/`: existing workflows plus local charts, research controls, exact tables, comparison/quality disclosures and component regressions.
+- `frontend/e2e/`: original foundation workflow and two research workflows against actual UI/API/PostgreSQL.
+- `scripts/`: secret initialization, regression driver and isolated recovery verifier. No new service or migration is needed for research.
+
+All paths below use `/api/v1`:
 
 | Area | Methods / paths |
 | --- | --- |
@@ -105,22 +92,8 @@ API prefix `/api/v1`:
 | Sources | GET/POST /data-sources; PATCH /data-sources/{id}/qualification |
 | Imports | POST/GET /import-batches; GET /import-batches/by-key/{key}; GET /import-batches/{id}; GET /import-batches/{id}/issues |
 | History/quality | GET /instruments/{id}/history; GET /instruments/{id}/quality |
+| Research | GET /instruments/{id}/chart; GET /instruments/{id}/indicators; POST /comparisons (read-only calculation) |
 
-## Limits and next approval
+See [design contracts](docs/03-design/VS-01_DETAILED_DESIGN.md), [acceptance dispositions](docs/03-design/VS-01_ACCEPTANCE_AND_TEST_PLAN.md), [dependency review](docs/04-planning/VS-01_SECURITY_REVIEW.md) and [container controls](docs/04-planning/VS-01_CONTAINER_REPRODUCIBILITY.md). Runtime images/uv are digest pinned; dependencies/browser are locked. Verification establishes tested-platform dependency selection/startup, not byte-identical image builds or OS-image vulnerability clearance.
 
-No technical indicators, comparison calculations, charting, strategies/recommendations, GTT, portfolios, paper trading, broker execution or AI integration are implemented. R1's configurable hypothetical ₹20 lakh reference portfolio and independent strategy horizons remain requirements for later authorized increments.
-
-See [remaining gaps and next work](docs/04-planning/VS-01_IMPLEMENTATION_STATUS.md#remaining-gaps-and-next-work). Synthetic backup/isolated restore and pinned startup are verified; qualified real-market samples, remaining capabilities and final operational acceptance still require their recorded evidence/authorizations. No approved product decision or baseline requirement classification is changed.
-
-
-## Verification checkpoint and recovery
-
-The current [verification checkpoint](docs/04-planning/VS-01_VERIFICATION_CHECKPOINT.md) distinguishes scoped verification from full acceptance. See [dependency remediation](docs/04-planning/VS-01_SECURITY_REVIEW.md), [container reproducibility](docs/04-planning/VS-01_CONTAINER_REPRODUCIBILITY.md), [real ETF qualification](docs/04-planning/VS-01_DATA_QUALIFICATION.md), and the [next-package proposal](docs/04-planning/VS-01_NEXT_PACKAGE_PROPOSAL.md).
-
-Run the synthetic-only backup/restore exercise with:
-
-```powershell
-.\.venv\Scripts\python.exe scripts/verify_recovery.py
-```
-
-Follow the [recovery instructions](docs/05-operations/LOCAL_RECOVERY.md). Archives and reports stay in ignored restricted/local directories. Never restore over the active application database. Git commit creation awaits explicit human confirmation.
+The next gate is qualified real Gold/Silver source evidence, followed by T-03/cumulative acceptance and operational handover. Later R1 strategy/risk/portfolio/paper/manual/broker/AI features remain unimplemented and require separate authorization. The requirements baseline and approved D-01..16 are preserved. This Step 4 checkpoint awaits human review; no commit or release tag has been created.

@@ -46,3 +46,13 @@ export interface SeriesMeta {
   freshness: { status: string; assessment_as_of: string; actual_latest_date: string | null; expected_latest_date: string | null; reason: string };
   limitations: string[];
 }
+
+
+export interface SeriesRef { instrument_id: string; source_id: string; interval: string; price_basis: string; revision: number; profile_digest: string }
+export interface ChartPoint { trading_date: string; close: string; observation_id: string; batch_id: string; row_number: number; break_before: string | null }
+export interface PriceChartResult { status: string; unavailable_reason: string | null; series_ref: SeriesRef; computed_at: string; input_fingerprint: string; input_evidence: { observation_count: number; first_date: string | null; last_date: string | null; batch_ids: string[] }; points: ChartPoint[] }
+export interface IndicatorValue { trading_date: string; value: string | null; reason: string | null; seed_date: string | null; break_before: string | null }
+export interface IndicatorResult { status: string; unavailable_reason: string | null; indicator_id: string; algorithm_version: string; n: number; window_unit: string; series_ref: SeriesRef; seed_date: string | null; seed_dates: string[]; computed_at: string; input_fingerprint: string; values: IndicatorValue[] }
+export interface ComparisonValue { trading_date: string; close: string; rebased_price: string | null; volume: number | null; observation_id: string; batch_id: string; row_number: number }
+export interface ComparisonSeries { key: string; currency: string; price_basis: string; data_class: string; close_end: string | null; volume_end: number | null; price_change_percent: string | null; input_fingerprint: string; values: ComparisonValue[]; meta: SeriesMeta & { instrument: { id: string; symbol: string; name: string; metal: string }; input_fingerprint: string } }
+export interface ComparisonResult { status: string; unavailable_reason: string | null; method_version: string; computed_at: string; requested_period: { start: string; end: string }; effective_period: { start: string | null; end: string | null }; common_dates: string[]; common_observation_count: number; input_fingerprint: string; limitations: string[]; series: ComparisonSeries[] }

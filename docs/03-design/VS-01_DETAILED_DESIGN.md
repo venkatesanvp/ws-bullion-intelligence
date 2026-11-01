@@ -1,15 +1,19 @@
 # VS-01 Detailed Design - Gold/Silver ETF Research Dashboard
 
-**Version/date:** 0.1 - Proposed; 2026-11-01 (Asia/Calcutta).  
-**Authority:** Human Step 2 architecture/design task; documentation only.  
+**Version/date:** 0.2 - Scoped Step 4 research contracts; 2026-11-02 (Asia/Calcutta).
+
+**Authority:** Step 2 design record, followed by the human Step 3 implementation/security grant and Step 4 research-dashboard grant; see the dated scoped dispositions and [implementation status](../04-planning/VS-01_IMPLEMENTATION_STATUS.md).
+
 **Baseline:** [REQ-BL-1.0](../01-requirements/REQUIREMENTS_BASELINE.md), annotated tag `requirements-v1.0`, commit `e10eef55fb21368e53dbe4599006b620cbb48566`. Tag and unchanged source content verified before authoring.  
-**Status:** Architecture/design recommendations are Proposed. No baseline requirement status, maturity, priority, applicability or increment is changed. No implementation or spike is authorized.
+**Status:** Scoped Step 3/4 approvals apply as recorded below and in IMPLEMENTATION_STATUS. DC-05/06 and applicable research UI/API portions are approved by Step 4. No baseline requirement status, maturity, priority, applicability or increment is changed.
+
+Sections 1 through DC-09 retain original Step 2 contract wording, including prospective setup/approval language. Read it against the dated scoped grants below and current implementation status; it is not a current assertion that implementation is blocked.
 
 ## 1. Scope and contract authority
 
 VS-01 implements ten capabilities in the [traceability/readiness matrix](../04-planning/VS-01_IMPLEMENTATION_BACKLOG.md#readiness). It is a cross-cutting research slice, not complete R1-A/B/C. Portfolio capital, trading rules, recommendations/GTT, strategy backtests, paper orders, manual transactions, LLM integration, scheduled reports and live/provider network adapters are excluded.
 
-All DC contracts and architecture decisions remain Proposed. They elaborate requirements without changing the frozen 117-item inventory. Formula research is not a trade signal. No app, database, API, UI, test or infrastructure code is created by this document.
+The historical proposals elaborate requirements without changing the frozen 117-item inventory; the recorded scoped Step 3/4 approvals now govern applicable behavior. Formula research is not a trade signal. No app, database, API, UI, test or infrastructure code is created by this document.
 
 | Contract | Purpose | Primary architecture decisions |
 | --- | --- | --- |
@@ -135,9 +139,11 @@ Known hard discontinuities reset recursive indicator seeding; unknown continuity
 
 ## DC-05 - Pure deterministic indicator framework
 
+**Approval status:** Approved for Step 4 research scope on 2026-11-02, subject to the recorded conventions and real-data blocker.
+
 ### Inputs, precision and outputs
 
-Inputs: explicit SeriesRef(instrument_id,source_id,interval=1d,price_basis,revision,profile_digest), ordered eligible closes with observation IDs/hashes, segment breaks, requested date range, and required integer n. No implicit period. Proposed technical bound n <= 10,000; n >= 1.
+Inputs: explicit SeriesRef(instrument_id,source_id,interval=1d,price_basis,revision,profile_digest), ordered eligible closes with observation IDs/hashes, segment breaks, requested date range, and required integer n. No implicit period. Approved Step 4 technical bound n <= 10,000; SMA/EMA n >= 1; Wilder RSI n >= 2. The RSI minimum explicitly supersedes the earlier shared n >= 1 proposal.
 
 Use a local Decimal context of precision **34**, ROUND_HALF_EVEN and exact parsed decimal inputs; do not mutate a process-global arithmetic context. Proposed derived wire values are decimal strings quantized to **12 fractional places**, negative zero normalized to zero. Compare independent exact-rational/reference wire values, not LLM answers. These are Proposed computation conventions requiring approval, not trading thresholds. Price storage retains source precision up to its declared DB scale.
 
@@ -173,6 +179,8 @@ Unit/reference cases are VS01-T-11..14. These calculations are not strategy back
 <a id="dc-06"></a>
 
 ## DC-06 - Supported ETF comparison metrics
+
+**Approval status:** Approved for Step 4 research scope on 2026-11-02, subject to the recorded conventions and real-data blocker.
 
 Each selected instrument has an explicit source/price basis/revision. Require same currency and compatible declared basis; no FX conversion or silent vendor blend. Use the intersection of observed eligible dates within the requested inclusive range. No forward fill or interpolation.
 
@@ -275,3 +283,17 @@ Charts provide keyboard-readable controls and a table alternative. Imported stri
 - Unknown DB commit outcome is resolved using the same request key; no unsupported job engine, automatic corrections or silent retry changes.
 
 See [acceptance plan](VS-01_ACCEPTANCE_AND_TEST_PLAN.md) for executable evidence expectations and [planning approval package](../04-planning/VS-01_IMPLEMENTATION_BACKLOG.md#approval-package). The design may be reviewed now; implementation remains blocked pending the explicitly identified approvals.
+
+
+## Step 4 design approval and implementation refinements - 2026-11-02
+
+DC-05 and DC-06 are approved under the human Step 4 conventions. Relevant analytical/chart portions of DC-04/07/08 are authorized by the explicit implementation/UX scope. The original baseline and requirement classifications are unchanged.
+
+- Reported contract difference before implementation: RSI now requires n>1; SMA/EMA retain positive integer n. No implicit periods or trading thresholds.
+- Known calendar gaps and declared break dates start a new segment at the first following observation; explicit evidence, not elapsed-day guesses, determines breaks. Decimal arithmetic remains local and authoritative; chart coordinates may approximate values, with exact string tables/hover evidence.
+- A bounded GET `/instruments/{id}/chart` returns complete selected-range prices, break markers and provenance (<=10,000 observations), avoiding silent pagination/truncation in a chart. It adds no market calculation. Indicator queries load the complete <=10,000-observation prefix through end before trimming the display range.
+- Indicator/chart responses carry SeriesRef, input fingerprint/evidence, timestamps, reasons and metadata. Frontend refuses to combine different revisions/profile digests.
+- Comparisons require an explicit inclusive start/end, 2..10 distinct listings, explicit sources/bases and common dates. Unknown or incompatible bases/currencies return explicit unavailable payloads (422 for incompatible requests per DC-07); no common/insufficient dates remain visible unavailable results. Provider-adjusted compatibility must have the same recorded adjustment-definition reference; otherwise compatibility is unverified. Mixed real/synthetic classifications are unavailable to preserve the test-data boundary. No inferred source equivalence or adjustments.
+- No table or migration is added; calculations are read-only, and comparison POST queries use the same consistent snapshot boundary as GET analytics.
+
+This scope approval is not verification evidence. SQ-01 and full VS-01 acceptance remain open.

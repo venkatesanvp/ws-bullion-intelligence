@@ -22,4 +22,4 @@ Registering a source starts UNVERIFIED. The source review records rights and ret
 
 The application records the owner's review; it does not independently verify a license, market prices or ETF identity. Referenced evidence is not fetched automatically. Contract-valid synthetic files exercise parsing and controls but cannot satisfy real-data acceptance. Historical ingestion time does not prove historical market availability.
 
-Next data action: obtain the owner's permitted qualification package, inspect it, and record a concrete SQ-01 disposition before real ingestion. Preserve this blocker if the information is unavailable. Current indicator/chart approval proposals do not waive it.
+Next data action: obtain the owner's permitted qualification package, inspect it, and record a concrete SQ-01 disposition before real ingestion. Preserve this blocker if the information is unavailable. The Step 4 indicator/chart/comparison approval does not waive it. Technical synthetic verification of those capabilities is complete; SQ-01/T-03 remain blocked.

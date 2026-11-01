@@ -148,3 +148,26 @@ class ImportMetadata(Strict):
         ):
             raise ValueError("Invalid or duplicate mapped header")
         return value
+
+
+class ComparisonSelection(Strict):
+    instrument_id: UUID
+    source_id: UUID
+    price_basis: Literal["RAW_CLOSE", "PROVIDER_ADJUSTED", "UNKNOWN"]
+
+
+class ComparisonRequest(Strict):
+    series: list[ComparisonSelection] = Field(min_length=2, max_length=10)
+    start: date
+    end: date
+    assessment_as_of: datetime | None = None
+
+    @model_validator(mode="after")
+    def coherent_comparison(self):
+        if self.start > self.end or len({s.instrument_id for s in self.series}) != len(self.series):
+            raise ValueError("Select distinct listings and a coherent explicit period")
+        if self.assessment_as_of is not None and (
+            self.assessment_as_of.tzinfo is None or self.assessment_as_of.utcoffset() is None
+        ):
+            raise ValueError("Assessment timezone required")
+        return self

@@ -29,3 +29,12 @@ Six existing component tests pass without weakened assertions or test exclusions
 No unresolved critical finding from the reported dependency set remains. Registry advisories are time-dependent; zero findings describes the executed scans, not a permanent security guarantee or an OS-image vulnerability assessment. Raw scan outputs remain ignored local artifacts. Local secrets are never placed in scan arguments or reports.
 
 Trace: scoped REQ-05-003/004, REQ-06-008; ADR-08/09; DC-09; WI-01/03 and current Step 3 security grant. Baseline requirement classifications and D-01..16 are unchanged.
+
+
+## Step 4 dependency and exposure re-verification - 2026-11-02
+
+Added exact production dependency `plotly.js-basic-dist-min@4.2.0` and development-only type dependency `@types/plotly.js@3.0.15`; both package licenses are MIT. The Plotly MIT notice is preserved in `frontend/public/licenses/plotly.js-LICENSE.txt`. The lock contains registry integrity hashes. The selected basic distribution provides locally bundled Cartesian charts; no CDN script or external market-data request is used. Rendering uses `Plotly.react`/`purge`; see [official function reference](https://plotly.com/javascript/plotlyjs-function-reference/), [distribution descriptions](https://github.com/plotly/plotly.js/blob/main/dist/README.md) and [MIT license](https://github.com/plotly/plotly.js/blob/main/LICENSE). User-controlled plot labels are escaped and numeric hover values are exact validated server strings.
+
+Final full and production-only npm audits: **zero findings** (`artifacts/step4-frontend-audit-full.json`, `step4-frontend-audit-production.json`). Final pinned pip-audit Windows: **40 packages, zero findings/skips** (`step4-backend-audit.json`); actual rebuilt Linux API: **28 packages, zero findings/skips** (`step4-backend-linux-audit.json`). Original Step 3 findings remain remediated; no advisory was suppressed, ignored or downgraded. No forced upgrades or financial-library dependency was introduced. Isolated npm 11.6.4 generated the lock; ordinary frozen container install and host build/tests succeeded.
+
+Cumulative 114 backend, 16 component and three Chromium tests pass, including the original access/ingestion workflow and new local-only request/memory-token checks. Actual local secrets are absent from the production frontend and runtime logs. Lazy chart chunk is about 1.22 MB/407 kB gzip; the build warning is retained as a measured ADR-07 tradeoff. Application dependency scans do not establish OS-image vulnerability clearance or permanent safety.

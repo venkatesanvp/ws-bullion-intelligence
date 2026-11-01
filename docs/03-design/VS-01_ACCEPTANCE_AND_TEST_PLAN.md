@@ -1,13 +1,15 @@
 # VS-01 Acceptance and Test Plan
 
-**Version/date:** 0.1 - Proposed; 2026-11-01 (Asia/Calcutta).  
-**Authority:** Human Step 2 architecture/design task; documentation only.  
+**Version/date:** 0.2 - Execution disposition; 2026-11-02 (Asia/Calcutta).
+
+**Authority:** Step 2 design record, followed by the human Step 3 implementation/security grant and Step 4 research-dashboard grant; see the dated scoped dispositions and [implementation status](../04-planning/VS-01_IMPLEMENTATION_STATUS.md).
+
 **Baseline:** [REQ-BL-1.0](../01-requirements/REQUIREMENTS_BASELINE.md), annotated tag `requirements-v1.0`, commit `e10eef55fb21368e53dbe4599006b620cbb48566`. Tag and unchanged source content verified before authoring.  
-**Status:** Architecture/design recommendations are Proposed. No baseline requirement status, maturity, priority, applicability or increment is changed. No implementation or spike is authorized.
+**Status:** Step 3/4 scoped contracts and execution evidence apply. Full VS-01 acceptance remains blocked by real-source qualification and final operational/human acceptance. Baseline classifications are unchanged.
 
 ## 1. Test authority and evidence status
 
-All cases below are **Designed - not executed**. No application exists and no runtime/dependency/database/browser installation was performed. Test readiness does not approve governing requirements. See [DC-01..09](VS-01_DETAILED_DESIGN.md) and [current readiness](../04-planning/VS-01_IMPLEMENTATION_BACKLOG.md#readiness).
+Cases below originated as Step 2 designs. Their current execution disposition is in section 7; that disposition separates automated synthetic evidence from complete acceptance. Test readiness does not approve governing requirements. See [DC-01..09](VS-01_DETAILED_DESIGN.md) and [current readiness](../04-planning/VS-01_IMPLEMENTATION_BACKLOG.md#readiness).
 
 After scoped approval, unit tests accompany each work item; integration/browser evidence closes the end-to-end path. Do not defer correctness tests until all features exist.
 
@@ -24,9 +26,9 @@ Synthetic fixtures are clearly labeled test-only and never displayed as real mar
 
 ## 2. Acceptance and verification cases
 
-For every case retain the versioned inputs/profile/algorithm references, expected-versus-observed assertion and future report; no result exists yet.
+For every case retain versioned input/profile/algorithm references, expected-versus-observed assertions and reports. Section 7 identifies executed evidence and remaining limits.
 
-Every numeric example below is **synthetic arithmetic fixture data**, not a quote, signal, portfolio or backtest. Expected rounded strings implement Proposed DC-05, not an approved trading threshold.
+Every numeric example below is **synthetic arithmetic fixture data**, not a quote, signal, portfolio or backtest. Expected rounded strings implement the Step 4-approved DC-05 conventions, not an approved trading threshold.
 
 <a id="vs01-t-01"></a>
 
@@ -305,3 +307,25 @@ Re-evaluate the completed proposal against the frozen requirement states, rather
 - Keep missing actual CSV evidence distinct from permission to code against approved synthetic fixtures.
 - Check invariants with counterexamples: mixed source/basis, same-bar invented timing, unknown calendar/publication, failed commit/retry, contaminated test data and stale UI response.
 - The assessment outcome is recorded in the planning file; it is a separate review pass, not a claim that a second human or an implemented system has certified readiness.
+
+
+## 7. Step 4 execution disposition - 2026-11-02
+
+Final cumulative execution: 114 backend tests (real PostgreSQL integration enabled), 16 component tests, three Chromium workflows, Python lint and production build passed; zero failed or skipped automated tests. This is executed-suite coverage, not a blanket assertion that every designed case and human acceptance gate is complete. Full trace is in [Step 4 completion](../04-planning/VS-01_STEP4_COMPLETION.md) and the historical [Step 3 case review](../04-planning/VS-01_VERIFICATION_CHECKPOINT.md).
+
+| Designed cases | Actual evidence and disposition |
+| --- | --- |
+| T-01 | Listing/watchlist persistence and original real-backend browser workflow regression passed with synthetic fixtures. |
+| T-02 | Gold/Silver selection and response identity tests passed, including late response and source/revision mismatch. |
+| T-03 | **Blocked, not executed:** no qualified real ETF CSV/sample or inspected rights. Synthetic source assertions do not pass this case. |
+| T-04..10 | Existing parser, transactions, duplicate/concurrent import, provenance, history snapshots and explicit calendar/freshness tests regression passed. Real-source coverage/calendar qualification remains outside this evidence. |
+| T-11..14 | 26 pure indicator tests with independent Fraction closed-form references, invalid/short/flat/gain/loss cases, global-context isolation, full-prefix and known-gap reset checks; corresponding PostgreSQL API tests passed. |
+| T-15..16 | 11 pure comparison tests plus actual API/browser verification: common-date endpoints, exact percentages/rebasing, unknown/incompatible basis/currency/class, no/one common date and concurrent-write snapshot consistency. No total-return/NAV/spread claims. |
+| T-17 | Original issue lineage and research quality/provenance paths passed on synthetic profiles. Unknown profiles remain unassessed. |
+| T-18 | Components, chart lifecycle/StrictMode, chart failure table alternative, empty/insufficient/flat results, toggles, exact tables, two research browser flows and desktop/mobile screenshot inspection passed. Browser scope is Chromium on this workstation. |
+| T-19..20 | Existing access/origin/upload/error tests passed; research browser verifies local-only requests and memory-only credentials. Actual secrets absent from built frontend/runtime logs. Full npm and Windows/Linux Python audits found zero known findings. OS-image scanning was not performed. |
+| T-21 | Pinned Compose rebuilt and repeated startup passed, migration exited 0; UI/live/authenticated-ready 200 and unauthenticated-ready 401. Existing disposable restart test passed. |
+| T-22 | Isolated synthetic backup SHA/archive integrity, new-database restore, all table/schema hashes, provenance/audit trigger and fixed-asof history/chart/SMA/EMA/RSI/comparison outputs match. Actual owner-data restore/cutover and retention decision remain unverified. |
+| T-23 | Lock/image references retained, local tests require no provider calls, tagged baseline/D-01..16 unchanged and scope reviewed. Dependency startup reproducibility verified on Linux/amd64; no byte-identical image or cross-platform claim. |
+
+The original common lookback lower bound is refined by Step 4: SMA/EMA n>=1; Wilder RSI n>=2. No automatic financial lookback is selected. Earlier Step 2 planning language is historical; scoped authority is recorded independently of baseline requirement classifications.

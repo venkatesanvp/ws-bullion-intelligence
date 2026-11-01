@@ -1,11 +1,24 @@
 # VS-01 Implementation Backlog and Readiness Review
 
-**Version/date:** 0.1 - Proposed; 2026-11-01 (Asia/Calcutta).  
-**Authority:** Human Step 2 architecture/design task; documentation only.  
-**Baseline:** [REQ-BL-1.0](../01-requirements/REQUIREMENTS_BASELINE.md), annotated tag `requirements-v1.0`, commit `e10eef55fb21368e53dbe4599006b620cbb48566`. Tag and unchanged source content verified before authoring.  
-**Status:** Architecture/design recommendations are Proposed. No baseline requirement status, maturity, priority, applicability or increment is changed. No implementation or spike is authorized.
+**Version/date:** 0.2 - Scoped implementation disposition; 2026-11-02 (Asia/Calcutta).
 
-## 1. Planning authority and minimum implementation package
+**Authority:** Step 2 design record, followed by the human Step 3 implementation/security grant and Step 4 research-dashboard grant; see the dated scoped dispositions and [implementation status](../04-planning/VS-01_IMPLEMENTATION_STATUS.md).
+
+**Baseline:** [REQ-BL-1.0](../01-requirements/REQUIREMENTS_BASELINE.md), annotated tag `requirements-v1.0`, commit `e10eef55fb21368e53dbe4599006b620cbb48566`. Tag and unchanged source content verified before authoring.  
+**Status:** Scoped Step 3/4 grants apply. Sections 1-6 retain the historical Step 2 planning/readiness assessment except for explicit dated SQ dispositions. Current execution status follows below. No baseline requirement status, maturity, priority, applicability or increment is changed.
+
+## Current execution disposition - 2026-11-02
+
+| Work items | Current implementation/verification |
+| --- | --- |
+| WI-01..06, WI-09 | Existing implementation regression verified with synthetic fixtures. WI-05 real-source acceptance remains blocked by SQ-01. |
+| WI-07, WI-08, WI-10 | Implemented and verified for the approved deterministic research scope; see the Step 4 completion report. |
+| WI-11 | Partially complete: cumulative automated/security evidence passed; qualified real-source T-03 and cumulative human acceptance remain open. |
+| WI-12 | Partially complete: pinned startup, Linux arithmetic and isolated synthetic recovery verified; actual owner-data cutover/retention and final handover remain open. |
+
+[Step 4 completion evidence](VS-01_STEP4_COMPLETION.md) records exact tests, source changes and proposed checkpoint contents. Full VS-01 is not accepted.
+
+## 1. Historical Step 2 planning authority and minimum implementation package
 
 This file proposes work; it does not authorize running it. The attached Step 2 task explicitly permits planning while prohibiting source code, installations, Docker infrastructure, broker connection and implementation.
 
@@ -291,7 +304,7 @@ These approvals must also explicitly approve the scoped governing behavior trace
 - **Decision / evidence:** Approve daily-only canonical CSV, explicit listing/source/basis/currency, atomic rejection, exact-duplicate skipping, conflict rejection and no silent correction/overwrite.
 - **Existing question/requirement trace:** S1-Q-003/005; REQ-02-011/013.
 - **What it blocks:** Ingestion/persistence contract implementation.
-- **Status:** Open. Approve the concrete proposed DC policy or state the needed alternative; no value/default is inferred.
+- **Status:** Adopted by Step 3 for the scoped import/series contract.
 
 <a id="sq-03"></a>
 
@@ -300,7 +313,7 @@ These approvals must also explicitly approve the scoped governing behavior trace
 - **Decision / evidence:** Approve date precision, null publication times, missing/unknown-calendar disclosures, strict known-gap handling and freshness UNASSESSED unless an approved calendar/cutoff profile exists.
 - **Existing question/requirement trace:** S1-Q-004/005/014; R1-Q-011.
 - **What it blocks:** Quality/freshness and affected analytical behavior.
-- **Status:** Open. Approve the concrete proposed DC policy or state the needed alternative; no value/default is inferred.
+- **Status:** Adopted by Step 3 for explicit unknown/unassessed behavior; no calendar or cutoff is inferred.
 
 <a id="sq-04"></a>
 
@@ -309,7 +322,7 @@ These approvals must also explicitly approve the scoped governing behavior trace
 - **Decision / evidence:** Approve SMA, SMA-seeded EMA and Wilder RSI, explicit n, warm-up/flat/gap/basis behavior, Decimal precision 34 with HALF_EVEN and 12-place derived serialization; these are computation conventions, not trading thresholds.
 - **Existing question/requirement trace:** S1-Q-006/009; REQ-03-007; REQ-06-006.
 - **What it blocks:** Indicator implementation and numerical acceptance.
-- **Status:** Open. Approve the concrete proposed DC policy or state the needed alternative; no value/default is inferred.
+- **Status:** Resolved for VS-01 by the human Step 4 conventions on 2026-11-02; see the dated disposition. No baseline requirement state is promoted.
 
 <a id="sq-05"></a>
 
@@ -318,7 +331,7 @@ These approvals must also explicitly approve the scoped governing behavior trace
 - **Decision / evidence:** Approve common-date same-currency/same-basis price-only comparisons, no fill-forward, raw-price corporate-action limitations and no NAV/spread/total-return claims without inputs.
 - **Existing question/requirement trace:** S1-Q-008/009; R1-Q-015.
 - **What it blocks:** Comparison implementation and claims.
-- **Status:** Open. Approve the concrete proposed DC policy or state the needed alternative; no value/default is inferred.
+- **Status:** Resolved for VS-01 by the human Step 4 conventions on 2026-11-02; see the dated disposition. No baseline requirement state is promoted.
 
 <a id="sq-06"></a>
 
@@ -327,7 +340,7 @@ These approvals must also explicitly approve the scoped governing behavior trace
 - **Decision / evidence:** Approve loopback-only deployment, one local token in memory in the UI, no token in frontend build, source/raw-row retention policy and manual backup/restore acceptance; no arbitrary RPO/RTO/SLA.
 - **Existing question/requirement trace:** S1-Q-011/016; R1-Q-012.
 - **What it blocks:** State-changing APIs and reproducible personal-use startup.
-- **Status:** Open. Approve the concrete proposed DC policy or state the needed alternative; no value/default is inferred.
+- **Status:** Conditionally approved by Step 3 for the documented local controls; owner-data retention/cutover acceptance remains pending.
 
 <a id="sq-07"></a>
 
@@ -336,9 +349,9 @@ These approvals must also explicitly approve the scoped governing behavior trace
 - **Decision / evidence:** Explicitly approve only the VS-01 behavior/criteria traced to Proposed/Open parents, ADR-01..10 and DC-01..09, and separately authorize the specified work items and routine project dependency/container setup.
 - **Existing question/requirement trace:** S1-Q-016; REQ-BL-1.0 section 9.
 - **What it blocks:** All production implementation until a documented human grant; approval of architecture alone is insufficient.
-- **Status:** Open. Approve the concrete proposed DC policy or state the needed alternative; no value/default is inferred.
+- **Status:** Step 3/4 scoped grants recorded; only the listed work items and applicable research verification/operations are authorized.
 
-### 5.3 Exact proposed implementation authorization - NOT GRANTED
+### 5.3 Historical Step 2 proposed implementation authorization
 
 A future human grant can say:
 
@@ -355,3 +368,10 @@ This text is a proposal for review, not an instruction to execute. If data remai
 - Links/anchors, ID uniqueness, work dependency acyclicity, capability/test coverage, numerical fixture expectations and cross-document conventions are checked as documentation QA.
 - No product test, market-data qualification, performance result, restoration exercise or runtime readiness is asserted.
 - Submit the concise package for human approval; do not begin implementation, stage/commit/tag these documents, or amend requirements under the current task.
+
+
+## Step 4 disposition - 2026-11-02
+
+The human Step 4 grant authorizes WI-07, WI-08, WI-10 and applicable research verification/operational portions of WI-11/12. WI-07 and WI-08 each depend on existing WI-06; WI-10 follows WI-07/08/09, then applicable WI-11/12. Historical blocked/proposed statements above are retained as the original planning record and do not override this dated scoped grant.
+
+SQ-04 resolved: explicit SMA/EMA n>=1, RSI n>=2; documented Decimal, seeding, warm-up/flat/gap/unknown-basis behavior. SQ-05 resolved: same-currency/compatible-basis common-date price-only comparisons; no filling or total-return claims. SQ-07 granted only for the described research scope. SQ-01 remains Open; no real-source acceptance or external download is approved. No broader baseline status changes or trading/portfolio/broker/AI implementation. Executed evidence is recorded in [Step 4 completion](VS-01_STEP4_COMPLETION.md); WI-11/12 remain partial as stated above.

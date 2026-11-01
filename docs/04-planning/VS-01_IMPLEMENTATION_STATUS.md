@@ -1,66 +1,52 @@
-# VS-01 authorized subset - approval and verification record
+# VS-01 implementation status - Step 4
 
-## Human authorization (2026-11-01)
+Recorded: 2 November 2026 (Asia/Calcutta). Parent checkpoint: `5f0399b40eaa790117c5ab0e4c9ececf08ed251a`. This is a scoped implementation and verification record; **full VS-01 and R1 are not accepted**.
 
-The human Step 3 approval authorizes VS01-WI-01 through WI-06 and WI-09, in their existing dependency order, including code, routine dependencies, local Compose and tests. This record preserves the approval without rewriting the tagged REQ-BL-1.0 inventory.
+## Scoped authority
 
-- Approved ADR-01/02/03/04/05/08. ADR-04 real-data use remains conditional on qualified samples/permissions.
-- Conditionally approved ADR-09 and the data-quality portion of ADR-10 only.
-- Approved DC-01/02/03; conditionally approved DC-04/09; approved watchlist/import/history/quality portions of DC-07/08 only.
-- SQ-02 adopted; SQ-03 unknown/unassessed behavior adopted; SQ-06 conditionally approved for documented local controls. SQ-07 grant is limited to these seven work items.
-- SQ-01 remains Open. SQ-04/05, ADR-06/07, DC-05/06 and comparison portions remain unapproved. No indicator, comparison, charting, trade, GTT, paper, broker or real-order implementation.
-- Baseline requirements' approval, maturity, priority and allocation are unchanged. The separate scoped behavior approval above is the implementation authority.
+Step 3 authorized WI-01..06 and WI-09: ADR-01/02/03/04/05/08, conditional ADR-09 and quality ADR-10; DC-01/02/03, conditional DC-04/09 and applicable DC-07/08. SQ-02/03 were adopted, SQ-06 remains conditional on documented local controls. ADR-04 real-data acceptance remains conditional on permissions/samples.
 
-## Implementation refinements / impact assessment
+Step 4 approves ADR-06/07, remaining research ADR-10, DC-05/06 and applicable research DC-07/08. SQ-04/05 are resolved by explicit formula/precision/common-date conventions. SMA/EMA n>=1; RSI n>=2 refines the former shared lower bound. The grant covers WI-07, WI-08, WI-10 and applicable research WI-11/12 work; WI-07 and WI-08 each depend on WI-06, then WI-10 follows WI-07/08/09. Routine scoped coding/testing is authorized. Commit creation requires review and explicit approval of this new checkpoint; no release tag.
 
-The approved contracts are retained. Source profile.data_class explicitly records REAL_MARKET or SYNTHETIC_TEST to implement the approved synthetic-label boundary; it uses the existing JSON profile, not a new market source or claim of verification. Runtime startup uses generated local secrets; technical resource bounds remain those of DC-07. No financial policy or dataset rights are inferred.
+D-01..16, REQ-BL-1.0 and tag `requirements-v1.0` are unchanged. Scoped approvals do not promote frozen parent requirement classifications. SQ-01 remains Open. No strategy, trading recommendation, GTT, sizing, portfolio accounting, paper/manual transaction, AI or broker implementation.
 
-| Impact area | Assessment |
-| --- | --- |
-| Requirements/decisions | Existing IDs and D-01..16 unchanged; authorized seven-item scope only. |
-| Data/analytics | Existing eight entities, exact decimal observations and mapped raw provenance; no derived financial analytics. |
-| Architecture/interfaces | Logical monolith, protected local API and UI, PostgreSQL/Alembic and canonical CSV; no additional service. |
-| Verification | Applicable reference/API/PostgreSQL/component/browser cases; real-data acceptance stays blocked pending SQ-01. |
-| Delivery | WI-01 -> 02 -> 03 -> 04 -> 05 -> 06 -> 09; other work items not complete or implemented. |
+## Current work-item assessment
 
-## Current verification checkpoint
+| Work items / capability | Status | Evidence / limitation |
+| --- | --- | --- |
+| WI-01..04 | Implemented and regression verified in existing scope | Locked runtime, initial schema, access/error boundary, listing/watchlist/source forms; cumulative tests and original browser workflow pass. |
+| WI-05 | Implemented; real-source acceptance blocked | Canonical qualified-source CSV ingestion passes synthetic/API/DB cases. No qualified real ETF sample inspected. |
+| WI-06, WI-09 | Implemented and regression verified | Exact history, provenance, quality, import UI/idempotent outcomes; existing tests pass. Calendar/publication/quality unknowns remain explicit. |
+| WI-07 | Implemented and verified against synthetic references | Pure Decimal SMA, SMA-seeded EMA, Wilder RSI; 26 pure tests, 15 research PostgreSQL API cases shared with WI-08/10, Linux reference check. |
+| WI-08 | Implemented and verified against synthetic references | Same-currency compatible-basis common-date price-only change/rebasing, 11 pure comparison cases and API/browser tests. |
+| WI-10 | Implemented and verified within approved research scope | Local lazy Plotly charts, explicit lookbacks/ranges, RSI panel, comparison workbench, exact table alternative, quality/synthetic/limitations. Component and Chromium workflows pass; desktop/mobile inspected. |
+| WI-11 | Partially implemented/verified | Cumulative automated/security evidence complete for implemented synthetic scope; real-source T-03 and cumulative human acceptance blocked/pending. |
+| WI-12 | Partially implemented/verified | Pinned/repeated startup and isolated synthetic recovery including derived research outputs pass. Actual owner-data restore/cutover, retention decision and final handover remain pending. |
+| Broader R1 capabilities | Not implemented; outside this grant | Later strategy/risk/portfolio/execution/AI increments require separate authorization. |
 
-The current human Step 3 instruction additionally authorizes status review, safe dependency remediation, container locking, isolated synthetic recovery verification, regression checks, documentation and Git checkpoint preparation. **A commit still requires human confirmation.** Chart/indicator/comparison implementation is not authorized. This record supersedes the earlier 58-test checkpoint's open technical verification items without changing baseline classifications.
+## Final executed verification
 
-| Check | Actual result | Local evidence |
+| Check | Actual result | Ignored local evidence |
 | --- | --- | --- |
 | Python lint | Passed | `artifacts/verification.json` |
-| Backend, including PostgreSQL integration | **62 passed, 0 failed, 0 skipped**; two deprecation warnings | `artifacts/backend-tests.xml` |
-| Frontend components, Vitest 4.1.12 | **6 passed, 0 failed, 0 skipped** | verification command and `artifacts/verification.json` |
-| Real UI/API/PostgreSQL Chromium workflow | **1 passed, 0 failed, 0 skipped** | `frontend/playwright-report/` |
-| TypeScript/production build | Passed | `artifacts/verification.json` |
-| Pinned Compose build/start | Passed twice; migration completed and API/database/UI ready | `artifacts/runtime-verification.json`; `artifacts/compose-repeat-startup.log` |
-| Full npm audit and production-only npm audit | **0 findings** after remediation | `artifacts/frontend-audit-after.json`; `frontend-audit-production.json` |
-| Windows backend audit | 40 packages, 0 findings, 0 skipped | `artifacts/backend-audit.json` |
-| Actual Linux API audit | 28 packages, 0 findings, 0 skipped | `artifacts/backend-linux-audit.json` |
-| Synthetic backup/isolated restore | Passed: all tables/hashes, provenance, known query and audit trigger | `artifacts/recovery-verification.json`; ignored restricted backup archive |
+| Backend with actual disposable PostgreSQL | **114 passed, 0 failed, 0 skipped** | `artifacts/backend-tests.xml` |
+| Frontend components | **16 passed, 0 failed, 0 skipped** | verification command; `artifacts/verification.json` |
+| Real UI/API/PostgreSQL Chromium | **3 passed, 0 failed, 0 skipped** | `artifacts/browser-tests.xml`; `frontend/playwright-report/` |
+| TypeScript/production build | Passed; lazy chart bundle-size warning retained | `artifacts/verification.json` |
+| Full and production-only npm audits | **0 findings** | `artifacts/step4-frontend-audit-full.json`; `step4-frontend-audit-production.json` |
+| Windows Python audit | **40 packages, 0 findings, 0 skipped** | `artifacts/step4-backend-audit.json` |
+| Actual Linux API audit | **28 packages, 0 findings, 0 skipped** | `artifacts/step4-backend-linux-audit.json` |
+| Compose build and repeated startup | Passed; auth/readiness and loopback checks passed | `artifacts/step4-runtime-verification.json`; startup logs |
+| Linux arithmetic references | SMA/EMA/Wilder RSI passed | `artifacts/step4-linux-arithmetic.log` |
+| Backup/new isolated restore | Passed; table/schema/provenance/research-query hashes equal | `artifacts/recovery-verification.json` |
 
-The prior implementation snapshot is commit `6dea57f`. Current working-tree changes supply these fixes and evidence. A scoped review and designed-case matrix is in the [verification checkpoint](VS-01_VERIFICATION_CHECKPOINT.md); passing the implemented suite does not mean all 23 designed cases or full VS-01/R1 are accepted.
-
-## Repairs and traceability
-
-| Change | Existing requirement/design/work/test trace |
-| --- | --- |
-| Source-qualification form uses PATCH instead of POST | Scoped REQ-02-008 / REQ-05-003; DC-02/07/08; WI-04/09; real browser workflow |
-| Quoted platform-specific browser API launcher and accessible watchlist selector | REQ-05-001 / REQ-06-001; DC-09; WI-01/04/09; browser workflow |
-| Calendar gaps bounded to observed endpoints, with two regression cases | REQ-02-013; DC-04; WI-06; VS01-T-10/17; `test_calendar_gaps_only_between_observed_endpoints` |
-| Assessed Vitest 3.2.7 -> 4.1.12, mocker patched and tinypool removed | REQ-05-003/004 / REQ-06-008; ADR-08/09; DC-09; WI-01/03 and current security grant |
-| Immutable official Python/Node/PostgreSQL/uv inputs | REQ-05-001/008; ADR-09; DC-09; WI-01; VS01-T-21/23 |
-| Synthetic-only backup/restore verifier and instructions | REQ-05-009 / REQ-06-008; ADR-09; DC-09; current recovery grant; VS01-T-22 scoped portion |
-
-No trading formula, strategy threshold, approved decision, source entitlement or baseline classification was introduced or changed. The two calendar tests restore the already-approved data-quality boundary; they do not choose a financial calendar.
+Two backend dependency deprecation warnings, runner color warnings and the chart bundle warning remain. Initial blank-chart browser failure was diagnosed as an obsolete StrictMode render purging the current plot; fixed with serialized lifecycle handling, regression tested and full suite rerun. The original trace is retained. A reporting probe initially assumed UI had a Docker HEALTHCHECK; corrected to actual running/HTTP checks and repeated startup. These failures are not hidden by the final passing run.
 
 ## Remaining gaps and next work
 
-- **Real data remains blocked:** [SQ-01 qualification package](VS-01_DATA_QUALIFICATION.md). No qualified real ETF sample or permissions inspected; VS01-T-03 is not passed by synthetic tests.
-- **Remaining capabilities are unimplemented/unapproved:** SMA/EMA/Wilder RSI, price-only comparisons and charts; see the [next-package proposal](VS-01_NEXT_PACKAGE_PROPOSAL.md), including ADR/DC/SQ dispositions and remaining WI-07/08/10/11/12 work.
-- **Final operational handover is partial:** synthetic recovery and repeated startup are verified; owner-data restoration/cutover, retention decisions and cumulative full-slice acceptance are not claimed. See [local recovery instructions](../05-operations/LOCAL_RECOVERY.md).
-- **Dependency findings are remediated, not waived:** no unresolved critical finding in executed npm/Python dependency scans; [security assessment](VS-01_SECURITY_REVIEW.md). OS-image scanning is outside the reported scan coverage.
-- **Container locking/startup controls verified on Linux/amd64:** [reproducibility review](VS-01_CONTAINER_REPRODUCIBILITY.md); no byte-identical build or cross-platform guarantee.
+- **Blocked:** SQ-01/T-03 real ETF permissions, representative samples and source/identity/coverage/basis/time qualification; no external market data was downloaded or ingested.
+- **Partially verified:** owner-data recovery/cutover, retention decision and final operational/human acceptance. Synthetic recovery does not establish those gates.
+- **Known limitation:** Plotly basic chart chunk about 1.22 MB (407 kB gzip), lazy loaded; numeric coordinates are approximate display values, while authoritative values remain Decimal strings in server results and tables.
+- **Security coverage:** no unresolved critical finding in executed application dependency scans. OS-image vulnerability scanning and other platforms were not assessed.
 
-Historical architecture/backlog proposal labels and the tagged baseline are preserved. This record and the current human instruction carry later scoped authority. Full VS-01 and R1 remain **not accepted**.
+See [Step 4 completion and exact proposed checkpoint](VS-01_STEP4_COMPLETION.md), [executed case dispositions](../03-design/VS-01_ACCEPTANCE_AND_TEST_PLAN.md#7-step-4-execution-disposition---2026-11-02), [source qualification](VS-01_DATA_QUALIFICATION.md), [security review](VS-01_SECURITY_REVIEW.md), [container review](VS-01_CONTAINER_REPRODUCIBILITY.md) and [recovery instructions](../05-operations/LOCAL_RECOVERY.md). The prior [Step 3 verification checkpoint](VS-01_VERIFICATION_CHECKPOINT.md) and [adopted next-package proposal](VS-01_NEXT_PACKAGE_PROPOSAL.md) are historical records.

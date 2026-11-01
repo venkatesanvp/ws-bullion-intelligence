@@ -14,7 +14,7 @@ The script:
 
 1. Starts only the disposable `test-db` service and checks that its configured database is exactly `bullion_test`.
 2. Creates a unique `bullion_recovery_source_<run>_test` database, migrates it and seeds labeled synthetic listing/source/watchlist/import/quality data through the real API. No application database is selected.
-3. Snapshots every row in all eight domain tables plus the migration table, preserving database decimal text; hashes constraints, indexes, triggers and functions; records a fixed-as-of exact-price history query.
+3. Snapshots every row in all eight domain tables plus the migration table, preserving database decimal text; hashes constraints, indexes, triggers and functions; records fixed-as-of history/chart/indicator/comparison queries.
 4. Creates `backups/recovery-<run>/` with restricted permissions (Windows inheritance disabled; current user and SYSTEM only, or POSIX directory mode 0700).
 5. Captures `pg_dump --format=custom --no-owner --no-privileges` as binary bytes. It does not use PowerShell's text redirection for the archive. Writes the dump exclusively, its SHA-256 sidecar and verifies a read-back checksum.
 6. Inspects the archive with `pg_restore --list`, requiring every expected table.
@@ -22,7 +22,7 @@ The script:
 8. Requires equal table counts and full-row hashes, equal normalized schema hashes, zero orphan observation/batch/raw-row links, and the same fixed-as-of history response including exact decimal prices. Confirms the restored append-only observation trigger rejects an update.
 9. Writes a secret-free summary to `artifacts/recovery-verification.json`. A failure returns nonzero; inspect `checks` and `failure_type` without exposing connection settings.
 
-The successful fixture contains one listing, one source, one watchlist/member, one batch, two raw rows, two observations, two quality records and one schema revision. Every table is nonempty. Both data and provenance match after restoration. No indicator output is claimed; indicators are not implemented.
+The successful fixture contains two listings, one source, one watchlist/member, two batches, six raw rows, six observations, four quality records and one schema revision. Every table is nonempty. Both data and provenance match after restoration. Step 4 additionally verifies identical chart, SMA(2), EMA(2), RSI(2) and price-only comparison outputs, with operational timestamps excluded from result fingerprints. Exact input values and source/profile identities remain part of the comparison.
 
 ## Observed schema representation difference
 
