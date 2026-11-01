@@ -62,8 +62,8 @@ def series_meta(
     continuity = "UNVERIFIED"
     if calendar and count:
         window_start, window_end = start or range_first, end or range_last
-        lower = max(window_start.isoformat(), calendar["coverage_start"])
-        upper = min(window_end.isoformat(), calendar["coverage_end"])
+        lower = max(window_start.isoformat(), range_first.isoformat(), calendar["coverage_start"])
+        upper = min(window_end.isoformat(), range_last.isoformat(), calendar["coverage_end"])
         expected = {date.fromisoformat(d) for d in calendar["session_dates"] if lower <= d <= upper}
         observed = (
             set(

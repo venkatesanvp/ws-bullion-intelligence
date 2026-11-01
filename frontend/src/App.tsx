@@ -194,7 +194,7 @@ function Sources({ sources, mutate, busy }: { sources: Source[]; mutate: Mutate;
     e.preventDefault(); setError(''); const d = new FormData(e.currentTarget);
     try {
       const profile = JSON.parse(String(d.get('profile')));
-      await mutate('/data-sources/' + sourceId + '/qualification', { qualification: d.get('qualification'), rights_evidence_ref: d.get('rights_evidence_ref') || null, retention_review_ref: d.get('retention_review_ref') || null, permitted_uses: Object.fromEntries(['retrieval', 'storage', 'analysis', 'display'].map(k => [k, d.get(k) === 'on'])), profile });
+      await mutate('/data-sources/' + sourceId + '/qualification', { qualification: d.get('qualification'), rights_evidence_ref: d.get('rights_evidence_ref') || null, retention_review_ref: d.get('retention_review_ref') || null, permitted_uses: Object.fromEntries(['retrieval', 'storage', 'analysis', 'display'].map(k => [k, d.get(k) === 'on'])), profile }, 'PATCH');
     } catch (e) { setError(describe(e)); }
   }
   return <div className="two-column"><section className="card"><div className="eyebrow">EXPLICIT SOURCE CONTRACT</div><h2>Register a CSV source</h2><p>Registration starts unverified. Record evidence before prices can be imported or displayed.</p>

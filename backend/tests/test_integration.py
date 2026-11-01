@@ -495,3 +495,71 @@ def test_identity_correction_before_history_and_synthetic_relabel_block(api):
         == 409
     )
     assert history(api, meta).json()["meta"]["source"]["data_class"] == "SYNTHETIC_TEST"
+
+
+@pytest.mark.parametrize("start,end", [("2025-12-31", "2026-01-04"), ("2026-01-01", "2026-01-03")])
+def test_calendar_gaps_only_between_observed_endpoints(api, start, end):
+    """VS01-T-10/17: range extension cannot invent pre/post-history missing bars."""
+    profile = {
+        "calendar": {
+            "evidence_ref": "SYNTHETIC TEST ONLY",
+            "version": "test-bounds",
+            "coverage_start": "2025-12-31",
+            "coverage_end": "2026-01-04",
+            "session_dates": ["2025-12-31", "2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
+        }
+    }
+    _, _, metadata = seed(api, profile=profile)
+    assert (
+        upload(api, metadata, "trading_date,close\n2026-01-01,10\n2026-01-03,12\n").status_code
+        == 201
+    )
+    result = history(api, metadata, start=start, end=end).json()["meta"]
+    assert result["quality"]["missing_session_dates"] == ["2026-01-02"]
+    assert result["quality"]["missing_session_count"] == 1
+    assert result["coverage"]["range_first_date"] == "2026-01-01"
+    assert result["coverage"]["range_last_date"] == "2026-01-03"
+
+
+def test_explicit_freshness_stale_empty_and_nonmatching_as_of(api):
+    """VS01-T-10: only the reviewed as-of context can assess freshness."""
+    profile = {
+        "freshness": {
+            "evidence_ref": "SYNTHETIC TEST ONLY",
+            "assessment_as_of": "2026-01-03T18:00:00Z",
+            "expected_latest_session": "2026-01-03",
+        }
+    }
+    _, _, metadata = seed(api, profile=profile)
+    empty = history(api, metadata, assessment_as_of="2026-01-03T18:00:00Z").json()["meta"]
+    assert empty["freshness"]["status"] == "UNASSESSED"
+    assert empty["freshness"]["actual_latest_date"] is None
+    assert upload(api, metadata).status_code == 201
+    stale = history(api, metadata, assessment_as_of="2026-01-03T18:00:00Z").json()["meta"]
+    assert stale["freshness"]["status"] == "STALE"
+    assert stale["freshness"]["actual_latest_date"] == "2026-01-02"
+    assert (
+        history(api, metadata, assessment_as_of="2026-01-04T18:00:00Z").json()["meta"]["freshness"][
+            "status"
+        ]
+        == "UNASSESSED"
+    )
+
+
+def test_wrong_migration_revision_blocks_readiness_and_data(api, db_engine):
+    """VS01-T-21: a reachable database with the wrong schema cannot serve data."""
+    with db_engine.begin() as connection:
+        connection.execute(
+            text("UPDATE alembic_version SET version_num='synthetic_wrong_revision'")
+        )
+    try:
+        assert api.get("/api/v1/health/live").status_code == 200
+        assert api.get("/api/v1/health/ready").status_code == 503
+        response = api.get("/api/v1/instruments")
+        assert response.status_code == 503
+        assert response.json()["error"]["code"] == "DEPENDENCY_NOT_READY"
+    finally:
+        with db_engine.begin() as connection:
+            connection.execute(
+                text("UPDATE alembic_version SET version_num='0001_market_workbench'")
+            )

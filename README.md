@@ -25,7 +25,7 @@ The configuration script creates random local secrets and refuses to overwrite a
 - `docker compose stop` preserves the named database volume. Do not use volume deletion/reset commands on application data.
 - If Docker is not on PATH in PowerShell, replace `docker` with `& 'C:\Program Files\Docker\Docker\resources\bin\docker.exe'`.
 
-Compose startup, PostgreSQL integration and full browser evidence remain pending while the workstation's WSL/Docker setup is unavailable. See the verification record for actual results; successful code generation/build is not database acceptance.
+Compose startup and migrations, 62 backend tests including PostgreSQL integration, six frontend component tests, the production build and one real-backend Chromium workflow passed across 1-2 November 2026. See the verification record for evidence and remaining real-data, capability-approval and final handover gaps; full VS-01/R1 acceptance remains incomplete.
 
 ## First-use workflow
 
@@ -84,7 +84,7 @@ After Docker is running, with ports 55433, 8001 and 5173 available:
 
 The database option starts only the separate `test-db` service, named `bullion_test`, published on loopback 55433 with tmpfs storage. Tests migrate and truncate that explicitly disposable database; guards refuse nonlocal/non-`_test` targets. They do not reset the application database or its volume. Fixtures are visibly SYNTHETIC_TEST. Browser tests start a separate API on 8001 and a loopback Vite process on 5173; no mocked backend substitutes for the real PostgreSQL workflow.
 
-Reports go to ignored `artifacts/` and frontend test-report directories. The dependency locks record application/test package versions; Playwright's package fixes its browser revision. Image digests are recorded in Compose/Dockerfiles once resolved.
+Reports go to ignored `artifacts/` and frontend test-report directories. The dependency locks record application/test package versions; Playwright's package fixes its browser revision. Immutable image digests are recorded in Compose/Dockerfiles, including the uv bootstrap binaries; see the container reproducibility review.
 
 ## Source and interface map
 
@@ -110,4 +110,17 @@ API prefix `/api/v1`:
 
 No technical indicators, comparison calculations, charting, strategies/recommendations, GTT, portfolios, paper trading, broker execution or AI integration are implemented. R1's configurable hypothetical ₹20 lakh reference portfolio and independent strategy horizons remain requirements for later authorized increments.
 
-See [next-package approval proposal](docs/04-planning/VS-01_NEXT_PACKAGE_PROPOSAL.md). Backup/restore acceptance, qualified real-market samples and the remaining VS-01 capabilities still require their recorded evidence/authorizations. No approved product decision or baseline requirement classification is changed.
+See [remaining gaps and next work](docs/04-planning/VS-01_IMPLEMENTATION_STATUS.md#remaining-gaps-and-next-work). Synthetic backup/isolated restore and pinned startup are verified; qualified real-market samples, remaining capabilities and final operational acceptance still require their recorded evidence/authorizations. No approved product decision or baseline requirement classification is changed.
+
+
+## Verification checkpoint and recovery
+
+The current [verification checkpoint](docs/04-planning/VS-01_VERIFICATION_CHECKPOINT.md) distinguishes scoped verification from full acceptance. See [dependency remediation](docs/04-planning/VS-01_SECURITY_REVIEW.md), [container reproducibility](docs/04-planning/VS-01_CONTAINER_REPRODUCIBILITY.md), [real ETF qualification](docs/04-planning/VS-01_DATA_QUALIFICATION.md), and the [next-package proposal](docs/04-planning/VS-01_NEXT_PACKAGE_PROPOSAL.md).
+
+Run the synthetic-only backup/restore exercise with:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/verify_recovery.py
+```
+
+Follow the [recovery instructions](docs/05-operations/LOCAL_RECOVERY.md). Archives and reports stay in ignored restricted/local directories. Never restore over the active application database. Git commit creation awaits explicit human confirmation.

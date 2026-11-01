@@ -49,7 +49,7 @@ test('synthetic listing → qualification → import → persisted history → w
   await page.getByRole('button', { name: 'Instruments & watchlists' }).click();
   const watchlists = await (await request.get(root + '/watchlists', { headers: auth })).json();
   const watchlist = watchlists.data.find((w: { name: string }) => w.name === 'SYNTHETIC watchlist ' + suffix);
-  await page.getByLabel('Watchlist', { exact: true }).selectOption(watchlist.id);
+  await page.getByRole('combobox', { name: 'Watchlist', exact: true }).selectOption(watchlist.id);
   await page.getByLabel('Listing to add').selectOption(listing.id);
   await page.getByRole('button', { name: 'Add to watchlist' }).click();
   await expect(page.locator('.watchlist').filter({ has: page.locator('input[value="SYNTHETIC watchlist ' + suffix + '"]') }).getByText(symbol, { exact: true })).toBeVisible();
