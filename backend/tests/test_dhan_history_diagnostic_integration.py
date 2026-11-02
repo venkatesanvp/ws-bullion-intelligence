@@ -330,3 +330,64 @@ def test_inter_request_control_failure_reports_stopped_without_another_request()
     assert result["status"] == "BATCH_STOPPED_UNQUALIFIED"
     assert all(x["status"] == "DIAGNOSTIC_ERROR" for x in result["datasets"][1:])
     assert TOKEN not in json.dumps(result)
+
+
+def test_four_mocked_etfs_mixed_integral_representations_have_value_free_counters():
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        sid = json.loads(request.content)["securityId"]
+        payload = synthetic()
+        body = json.dumps(payload)
+        if sid in ("21401", "14428"):
+            body = body.replace(
+                '"volume": ' + json.dumps(payload["volume"]),
+                '"volume": [12345.0, 12345.0, 12345.0, 12345.0, 12345.0]',
+            )
+        if sid in ("21401", "21428"):
+            for stamp in payload["timestamp"]:
+                body = body.replace(str(stamp), str(stamp) + ".0")
+        return httpx.Response(
+            200, content=body.encode(), headers={"Content-Type": "application/json"}
+        )
+
+    result = batch(handler)
+    assert result["request_attempts"] == len(calls) == 4
+    for i, item in enumerate(result["datasets"]):
+        assert item["status"] == "VALIDATION_PASSED_UNQUALIFIED"
+        assert (
+            item["coverage_assessment_complete"] and item["successfully_mapped_trading_dates"] == 5
+        )
+        assert (
+            item["timestamp_conversion_failures"] == 0 and not item["timestamp_semantics_verified"]
+        )
+        assert item["volume_numeric_diagnostics"]["integral_decimal_values"] == (
+            5 if i in (0, 2) else 0
+        )
+        assert item["timestamp_numeric_diagnostics"]["integral_decimal_values"] == (
+            5 if i in (0, 1) else 0
+        )
+    assert all(
+        x["technical_inputs_compatible"] and not x["qualified_for_comparison"]
+        for x in result["comparisons"]
+    )
+    assert "12345" not in json.dumps(result) and "101.125" not in json.dumps(result)
+    assert TOKEN not in json.dumps(result) and CLIENT not in json.dumps(result)
+
+
+def test_mocked_unsupported_numeric_values_are_counted_without_reflection():
+    def handler(request):
+        payload = synthetic()
+        payload["volume"] = [TOKEN] * 5
+        payload["timestamp"] = [CLIENT] * 5
+        return httpx.Response(200, json=payload)
+
+    result = batch(handler)
+    assert result["request_attempts"] == 4
+    for item in result["datasets"]:
+        assert item["volume_numeric_diagnostics"]["unsupported_value_types"] == 5
+        assert item["timestamp_numeric_diagnostics"]["unsupported_value_types"] == 5
+        assert item["coverage_valid"] is None and item["duplicate_session_dates"] is None
+        assert item["missing_dates"] == () and item["unmapped_expected_dates"] == EXPECTED_DATES
+    assert TOKEN not in json.dumps(result) and CLIENT not in json.dumps(result)

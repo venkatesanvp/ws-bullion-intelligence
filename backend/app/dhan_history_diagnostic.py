@@ -1,4 +1,4 @@
-"""Step 5C / D-14 / REQ-05-003/004 -> ADR-09/DC-09.
+"""Step 5C.1 / D-14 / REQ-05-003/004 -> ADR-09/DC-09.
 
 Bounded backend-only, read-only historical qualification probe. No startup hook,
 SQL, raw-response storage, token exchange, performance calculation or trading.
@@ -31,7 +31,15 @@ EXPECTED_DATES = tuple(f"2026-10-{day}" for day in range(26, 31))
 MAX_RESPONSE_BYTES = 262_144
 MAX_OBSERVATIONS = 64
 BODY_BUDGET_SECONDS = 20.0
-IST = timezone(timedelta(hours=5, minutes=30))  # Approved October 2026 window only.
+# NSE exchange-local IST is UTC+05:30 for this approved October 2026 window.
+# A fixed offset avoids introducing a timezone-data dependency into the diagnostic.
+IST = timezone(timedelta(hours=5, minutes=30), name="Asia/Kolkata")
+# The endpoint describes int/Epoch and gives seconds-compatible examples, but no
+# explicit unit/session convention. This policy remains a candidate, never an
+# auto-detected unit or a verified provider contract. Milliseconds are not scaled.
+TIMESTAMP_EVIDENCE_REF = "https://dhanhq.co/docs/v2/historical-data/#daily-historical-data"
+MIN_CANDIDATE_SECONDS = 946684800  # 2000-01-01 UTC, technical sanity bound.
+MAX_CANDIDATE_SECONDS = 4102444799  # Last second before 2100-01-01 UTC.
 ADJUSTMENT_REF = "https://dhan.co/support/platforms/dhanhq-api/is-the-historical-data-from-dhan-s-data-api-adjusted-for-corporate-actions-like-bonuses-and-splits/"
 LIMITATIONS = (
     "SOURCE_USE_PERMISSION_UNVERIFIED",
@@ -69,6 +77,22 @@ INSTRUMENTS = (
 
 
 @dataclass(frozen=True)
+class IntegralNumericDiagnostics:
+    """Only counts. Representation categories partition values; range overlaps.
+
+    Populated only after strict JSON/schema validation. JSON NaN/Infinity remains
+    malformed JSON, with no fabricated field counts. No raw value is retained.
+    """
+
+    json_integer_values: int = 0
+    integral_decimal_values: int = 0
+    fractional_numeric_values: int = 0
+    unsupported_value_types: int = 0
+    non_finite_numeric_values: int = 0
+    invalid_numeric_ranges: int = 0
+
+
+@dataclass(frozen=True)
 class DatasetResult:
     symbol: str
     status: str
@@ -81,6 +105,17 @@ class DatasetResult:
     coverage_valid: bool | None = None
     duplicate_timestamps: int | None = None
     duplicate_session_dates: int | None = None
+    volume_numeric_diagnostics: IntegralNumericDiagnostics | None = None
+    timestamp_numeric_diagnostics: IntegralNumericDiagnostics | None = None
+    open_interest_numeric_diagnostics: IntegralNumericDiagnostics | None = None
+    timestamp_conversion_failures: int | None = None
+    timestamps_converted: int | None = None
+    successfully_mapped_trading_dates: int | None = None
+    coverage_assessment_complete: bool = False
+    unmapped_expected_dates: tuple[str, ...] = ()
+    timestamp_unit_policy: str = "UNIX_SECONDS_CANDIDATE"
+    timestamp_evidence_reference: str = TIMESTAMP_EVIDENCE_REF
+    exchange_timezone: str = "Asia/Kolkata"
     candidate_session_dates: tuple[str, ...] = ()
     missing_dates: tuple[str, ...] = ()
     unexpected_dates: tuple[str, ...] = ()
@@ -128,6 +163,46 @@ def _object(body: bytes) -> dict | None:
         return obj if isinstance(obj, dict) else None
     except (ValueError, UnicodeError, RecursionError, InvalidOperation, OverflowError):
         return None
+
+
+def _integral_values(
+    values: list, *, minimum: int, maximum: int
+) -> tuple[list, IntegralNumericDiagnostics]:
+    """Normalize only proven integral, finite, in-range numeric values.
+
+    JSON decimals are parsed as Decimal directly. Equality with an integral value
+    is checked before int conversion: no fractional value is rounded/truncated.
+    Bounds precede int conversion, avoiding expansion of hostile large exponents.
+    bool/str/null/Python floats are unsupported, never coerced into numbers.
+    """
+    counters = asdict(IntegralNumericDiagnostics())
+    normalized = []
+    for value in values:
+        if type(value) is int:
+            counters["json_integer_values"] += 1
+            integral = True
+        elif type(value) is Decimal:
+            if not value.is_finite():
+                counters["non_finite_numeric_values"] += 1
+                normalized.append(None)
+                continue
+            integral = value == value.to_integral_value()
+            counters["integral_decimal_values" if integral else "fractional_numeric_values"] += 1
+        else:
+            counters["unsupported_value_types"] += 1
+            normalized.append(None)
+            continue
+        in_range = minimum <= value <= maximum
+        if not in_range:
+            counters["invalid_numeric_ranges"] += 1
+        normalized.append(int(value) if integral and in_range else None)
+    return normalized, IntegralNumericDiagnostics(**counters)
+
+
+def _candidate_nse_date(seconds: int) -> str:
+    # Explicit Unix-seconds candidate policy; no host-local zone or float math.
+    instant = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=seconds)
+    return instant.astimezone(IST).date().isoformat()
 
 
 def _price(value) -> bool:
@@ -192,6 +267,15 @@ def validate_response(symbol: str, status: int, body: bytes, *, content_type: st
         return result("OBSERVATION_LIMIT_EXCEEDED", observation_count=count, schema_valid=False)
     if any(len(values) != count for values in obj.values()):
         return result("UNEXPECTED_RESPONSE", observation_count=count, schema_valid=False)
+    volumes, volume_diagnostics = _integral_values(obj["volume"], minimum=0, maximum=2**63 - 1)
+    stamps, timestamp_diagnostics = _integral_values(
+        obj["timestamp"], minimum=MIN_CANDIDATE_SECONDS, maximum=MAX_CANDIDATE_SECONDS
+    )
+    oi_diagnostics = None
+    oi_valid = True
+    if "open_interest" in obj:
+        oi, oi_diagnostics = _integral_values(obj["open_interest"], minimum=0, maximum=0)
+        oi_valid = all(value is not None for value in oi)
     if not count:
         return result(
             "EMPTY_RESPONSE",
@@ -200,17 +284,25 @@ def validate_response(symbol: str, status: int, body: bytes, *, content_type: st
             coverage_valid=False,
             missing_dates=EXPECTED_DATES,
             issues=("MISSING_OBSERVATIONS",),
+            volume_numeric_diagnostics=volume_diagnostics,
+            timestamp_numeric_diagnostics=timestamp_diagnostics,
+            open_interest_numeric_diagnostics=oi_diagnostics,
+            timestamp_conversion_failures=0,
+            timestamps_converted=0,
+            successfully_mapped_trading_dates=0,
+            coverage_assessment_complete=True,
+            duplicate_timestamps=0,
+            duplicate_session_dates=0,
         )
     issues = set()
-    numeric = all(_price(v) for k in ("open", "high", "low", "close") for v in obj[k])
-    numeric = numeric and all(type(v) is int and 0 <= v <= 2**63 - 1 for v in obj["volume"])
-    if "open_interest" in obj and any(type(v) is not int or v != 0 for v in obj["open_interest"]):
-        numeric = False
+    prices_valid = all(_price(v) for k in ("open", "high", "low", "close") for v in obj[k])
+    numeric = prices_valid and all(value is not None for value in volumes) and oi_valid
+    if not oi_valid:
         issues.add("UNEXPECTED_OPEN_INTEREST")
     if not numeric:
         issues.add("INVALID_NUMERIC_VALUE")
     coherent = None
-    if all(_price(v) for k in ("open", "high", "low", "close") for v in obj[k]):
+    if prices_valid:
         coherent = all(
             lo <= op <= hi and lo <= close <= hi
             for op, hi, lo, close in zip(
@@ -220,13 +312,17 @@ def validate_response(symbol: str, status: int, body: bytes, *, content_type: st
         if not coherent:
             issues.add("INCONSISTENT_OHLC")
     valid_stamps, dates = [], []
-    for stamp in obj["timestamp"]:
-        # Bounds prevent milliseconds/alternate epochs being silently interpreted.
-        if type(stamp) is not int or not 946684800 <= stamp < 4102444800:
+    conversion_failures = 0
+    for stamp in stamps:
+        if stamp is None:
             issues.add("UNSUPPORTED_TIMESTAMP_UNIT_OR_RANGE")
             continue
         valid_stamps.append(stamp)
-        dates.append(datetime.fromtimestamp(stamp, timezone.utc).astimezone(IST).date().isoformat())
+        try:
+            dates.append(_candidate_nse_date(stamp))
+        except (OverflowError, ValueError, OSError):
+            conversion_failures += 1
+            issues.add("TIMESTAMP_CONVERSION_FAILED")
     duplicate_stamps = len(valid_stamps) - len(set(valid_stamps))
     duplicate_dates = len(dates) - len(set(dates))
     if duplicate_stamps:
@@ -236,13 +332,18 @@ def validate_response(symbol: str, status: int, body: bytes, *, content_type: st
     if valid_stamps != sorted(valid_stamps):
         issues.add("NON_MONOTONIC_TIMESTAMPS")
     present = set(dates)
-    missing = tuple(sorted(set(EXPECTED_DATES) - present))
+    complete = len(dates) == count
+    absent = tuple(sorted(set(EXPECTED_DATES) - present))
     unexpected = tuple(sorted(present - set(EXPECTED_DATES)))
-    if missing:
+    if not complete:
+        # Rejected/unconvertible timestamps cannot prove missing provider rows or
+        # absence of duplicates. Preserve that uncertainty rather than report zero.
+        issues.add("DATE_COVERAGE_UNDETERMINED")
+    elif absent:
         issues.add("MISSING_OBSERVATIONS")
     if unexpected:
         issues.add("UNEXPECTED_SESSION_DATES")
-    coverage = not missing and not unexpected and not duplicate_dates and len(dates) == count
+    coverage = not absent and not unexpected and not duplicate_dates if complete else None
     return result(
         "INVALID_DATA" if issues else "VALIDATION_PASSED_UNQUALIFIED",
         observation_count=count,
@@ -250,10 +351,18 @@ def validate_response(symbol: str, status: int, body: bytes, *, content_type: st
         numeric_valid=numeric,
         ohlc_consistent=coherent,
         coverage_valid=coverage,
-        duplicate_timestamps=duplicate_stamps,
-        duplicate_session_dates=duplicate_dates,
+        duplicate_timestamps=duplicate_stamps if complete else None,
+        duplicate_session_dates=duplicate_dates if complete else None,
+        volume_numeric_diagnostics=volume_diagnostics,
+        timestamp_numeric_diagnostics=timestamp_diagnostics,
+        open_interest_numeric_diagnostics=oi_diagnostics,
+        timestamp_conversion_failures=conversion_failures,
+        timestamps_converted=len(dates),
+        successfully_mapped_trading_dates=len(present & set(EXPECTED_DATES)),
+        coverage_assessment_complete=complete,
+        unmapped_expected_dates=absent if not complete else (),
         candidate_session_dates=tuple(sorted(present)),
-        missing_dates=missing,
+        missing_dates=absent if complete else (),
         unexpected_dates=unexpected,
         issues=tuple(sorted(issues)),
     )
