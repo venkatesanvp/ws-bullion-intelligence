@@ -19,7 +19,7 @@ UI/API ports publish only to loopback; the application DB has no host port. Alem
 
 ## Optional DhanHQ credential preparation
 
-DhanHQ market-data configuration is disabled by default. Enter its developer application name/key/secret and any optional runtime client ID/token only in the ignored root `.env`; see [backend-only loading, offline validation and token rotation](docs/05-operations/DHANHQ_LOCAL_CONFIGURATION.md). No provider connection, download or trading capability is implemented by this configuration step. Missing optional credentials do not block the existing workbench.
+DhanHQ market-data configuration is disabled by default. Enter its developer application name/key/secret and any optional runtime client ID/token only in the ignored root `.env`; see [backend-only loading, offline validation and token rotation](docs/05-operations/DHANHQ_LOCAL_CONFIGURATION.md). The configuration checker stays offline. A separate [dual-gated read-only profile diagnostic](docs/05-operations/DHANHQ_READ_ONLY_DIAGNOSTIC.md) is implemented and tested with mocked HTTP only; live use requires explicit owner approval. Historical download, token exchange and trading are not implemented. Missing optional credentials do not block the existing workbench.
 
 ## Research workflow
 
@@ -100,4 +100,4 @@ All paths below use `/api/v1`:
 
 See [design contracts](docs/03-design/VS-01_DETAILED_DESIGN.md), [acceptance dispositions](docs/03-design/VS-01_ACCEPTANCE_AND_TEST_PLAN.md), [dependency review](docs/04-planning/VS-01_SECURITY_REVIEW.md) and [container controls](docs/04-planning/VS-01_CONTAINER_REPRODUCIBILITY.md). Runtime images/uv are digest pinned; dependencies/browser are locked. Verification establishes tested-platform dependency selection/startup, not byte-identical image builds or OS-image vulnerability clearance.
 
-The next gate is qualified real Gold/Silver source evidence, followed by T-03/cumulative acceptance and operational handover. Later R1 strategy/risk/portfolio/paper/manual/broker/AI features remain unimplemented and require separate authorization. The requirements baseline and approved D-01..16 are preserved. Step 4 implementation is checkpointed at `a244cfe`; later configuration changes await separate review. No full VS-01 acceptance is declared.
+The next gate is qualified real Gold/Silver source evidence, followed by T-03/cumulative acceptance and operational handover. Later R1 strategy/risk/portfolio/paper/manual/broker/AI features remain unimplemented and require separate authorization. The requirements baseline and approved D-01..16 are preserved. Step 4 implementation is checkpointed at `a244cfe`; the later Dhan configuration checkpoint is committed at `2e598c6`; Step 5A diagnostic changes await separate review. No full VS-01 acceptance is declared.

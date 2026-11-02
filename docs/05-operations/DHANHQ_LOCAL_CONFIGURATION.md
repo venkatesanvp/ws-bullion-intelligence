@@ -1,6 +1,6 @@
 # DhanHQ local developer and runtime configuration
 
-Authority: human Step 5 environment/offline-validation grants, revised 2 November 2026 (Asia/Calcutta). Trace: scoped REQ-05-003/004 -> ADR-09/DC-09. No authentication, token exchange, provider data request or trading capability is implemented. Account/app ownership is reported by the owner; entitlements and source permissions are unverified.
+Authority: human Step 5 environment/offline-validation grants, revised 2 November 2026 (Asia/Calcutta). Trace: scoped REQ-05-003/004 -> ADR-09/DC-09. This section records the configuration checkpoint; the later standalone Step 5A diagnostic is described below. No token exchange, historical acquisition or trading capability is implemented. Account/app ownership is reported by the owner; entitlements and source permissions are unverified.
 
 ## Local values and preservation
 
@@ -94,3 +94,8 @@ docker compose up -d --no-deps --force-recreate api
 A restart alone retains the old container environment. There is no automatic token generation, refresh, expiry validation or credential rotation. Replace expiring app keys through the owner's Dhan console separately from runtime-token replacement. Offline configuration cannot establish identity, token signature/expiry, subscription, permissions or permitted retention.
 
 The enabled flag remains false. Changing it only opens a configuration gate; it does not implement or authorize a connection, authentication exchange, download or order. The [source assessment](../04-planning/VS-01_STEP5_PROVIDER_ASSESSMENT.md) and SQ-01/T-03 remain pending real-data qualification. No changes to ETF mathematics, approved architecture/baseline or final acceptance are implied.
+
+
+## Step 5A standalone diagnostic - 2026-11-02
+
+The later [read-only diagnostic](DHANHQ_READ_ONLY_DIAGNOSTIC.md) adds a separate, dual-gated backend command for one proposed GET profile preflight. It does not change the seven-variable loader, its offline reports, normal application startup or the disabled `.env` gate. Only mocked requests are authorized and executed at this checkpoint. A true process-local gate and `--live-approved` require prior explicit owner approval; neither app keys nor the flag create that authorization. Historical requests, token exchange, source qualification and trading remain unimplemented/unverified.
