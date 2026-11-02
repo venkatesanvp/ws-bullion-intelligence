@@ -17,6 +17,10 @@ The configuration script generates local secrets and refuses to overwrite an exi
 
 UI/API ports publish only to loopback; the application DB has no host port. Alembic revision `0001_market_workbench` runs before API startup. `docker compose stop` preserves the named application volume. Never delete/reset that volume for tests. If Docker is not on PATH, use `& 'C:\Program Files\Docker\Docker\resources\bin\docker.exe'`.
 
+## Optional DhanHQ credential preparation
+
+DhanHQ market-data configuration is disabled by default. Enter its developer application name/key/secret and any optional runtime client ID/token only in the ignored root `.env`; see [backend-only loading, offline validation and token rotation](docs/05-operations/DHANHQ_LOCAL_CONFIGURATION.md). No provider connection, download or trading capability is implemented by this configuration step. Missing optional credentials do not block the existing workbench.
+
 ## Research workflow
 
 1. Configure exchange-specific Gold/Silver listings and watchlist membership in **Instruments & watchlists**. No universe is preselected or endorsed.
@@ -96,4 +100,4 @@ All paths below use `/api/v1`:
 
 See [design contracts](docs/03-design/VS-01_DETAILED_DESIGN.md), [acceptance dispositions](docs/03-design/VS-01_ACCEPTANCE_AND_TEST_PLAN.md), [dependency review](docs/04-planning/VS-01_SECURITY_REVIEW.md) and [container controls](docs/04-planning/VS-01_CONTAINER_REPRODUCIBILITY.md). Runtime images/uv are digest pinned; dependencies/browser are locked. Verification establishes tested-platform dependency selection/startup, not byte-identical image builds or OS-image vulnerability clearance.
 
-The next gate is qualified real Gold/Silver source evidence, followed by T-03/cumulative acceptance and operational handover. Later R1 strategy/risk/portfolio/paper/manual/broker/AI features remain unimplemented and require separate authorization. The requirements baseline and approved D-01..16 are preserved. This Step 4 checkpoint awaits human review; no commit or release tag has been created.
+The next gate is qualified real Gold/Silver source evidence, followed by T-03/cumulative acceptance and operational handover. Later R1 strategy/risk/portfolio/paper/manual/broker/AI features remain unimplemented and require separate authorization. The requirements baseline and approved D-01..16 are preserved. Step 4 implementation is checkpointed at `a244cfe`; later configuration changes await separate review. No full VS-01 acceptance is declared.

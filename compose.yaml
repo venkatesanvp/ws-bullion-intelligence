@@ -28,7 +28,16 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    environment: *backend_env
+    # Provider configuration is scoped to API only, never UI/DB/migration.
+    environment:
+      <<: *backend_env
+      DHAN_APP_NAME: ${DHAN_APP_NAME:-}
+      DHAN_API_KEY: ${DHAN_API_KEY:-}
+      DHAN_API_SECRET: ${DHAN_API_SECRET:-}
+      DHAN_CLIENT_ID: ${DHAN_CLIENT_ID:-}
+      DHAN_ACCESS_TOKEN: ${DHAN_ACCESS_TOKEN:-}
+      DHAN_API_BASE_URL: ${DHAN_API_BASE_URL:-https://api.dhan.co/v2}
+      DHAN_DATA_API_ENABLED: ${DHAN_DATA_API_ENABLED:-false}
     ports:
       - 127.0.0.1:8000:8000
     depends_on:
