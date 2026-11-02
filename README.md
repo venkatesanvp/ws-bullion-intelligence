@@ -21,6 +21,8 @@ UI/API ports publish only to loopback; the application DB has no host port. Alem
 
 DhanHQ market-data configuration is disabled by default. Enter its developer application name/key/secret and any optional runtime client ID/token only in the ignored root `.env`; see [backend-only loading, offline validation and token rotation](docs/05-operations/DHANHQ_LOCAL_CONFIGURATION.md). The configuration checker stays offline. A separate [dual-gated read-only profile diagnostic](docs/05-operations/DHANHQ_READ_ONLY_DIAGNOSTIC.md) is implemented and tested with mocked HTTP only; live use requires explicit owner approval. Historical download, token exchange and trading are not implemented. Missing optional credentials do not block the existing workbench.
 
+The later [four-primary-ETF historical diagnostic](docs/05-operations/DHANHQ_HISTORICAL_DIAGNOSTIC.md) is implemented for offline mocked verification. Its default invocation makes no request. Live historical use needs separate owner authorization and source-permission review; no prices are stored or imported.
+
 ## Research workflow
 
 1. Configure exchange-specific Gold/Silver listings and watchlist membership in **Instruments & watchlists**. No universe is preselected or endorsed.

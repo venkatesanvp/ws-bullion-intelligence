@@ -99,3 +99,8 @@ The enabled flag remains false. Changing it only opens a configuration gate; it 
 ## Step 5A standalone diagnostic - 2026-11-02
 
 The later [read-only diagnostic](DHANHQ_READ_ONLY_DIAGNOSTIC.md) adds a separate, dual-gated backend command for one proposed GET profile preflight. It does not change the seven-variable loader, its offline reports, normal application startup or the disabled `.env` gate. Only mocked requests are authorized and executed at this checkpoint. A true process-local gate and `--live-approved` require prior explicit owner approval; neither app keys nor the flag create that authorization. Historical requests, token exchange, source qualification and trading remain unimplemented/unverified.
+
+
+## Step 5C four-ETF diagnostic - 2026-11-02
+
+A separate [historical-data diagnostic](DHANHQ_HISTORICAL_DIAGNOSTIC.md) reuses this unchanged seven-variable loader for the four primary ETF mappings. Only mocked HTTP is authorized/executed at the Step 5C checkpoint. The ordinary service and `.env` gate remain false. Its future live command requires explicit owner approval and source-permission review acknowledged separately; no automatic token exchange, new configuration variable, startup hook, frontend access or price persistence is introduced. The preceding configuration/profile sections retain their dated scope.
