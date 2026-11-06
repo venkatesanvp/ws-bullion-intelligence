@@ -53,7 +53,12 @@ class Instrument(Base):
 class DataSource(Base):
     __tablename__ = "data_sources"
     __table_args__ = (
-        CheckConstraint("source_kind = 'USER_CSV'", name="ck_source_kind"),
+        CheckConstraint("source_kind IN ('USER_CSV','DHANHQ')", name="ck_source_kind"),
+        CheckConstraint(
+            "(source_kind = 'USER_CSV' AND contract_version = 'csv-v1') OR "
+            "(source_kind = 'DHANHQ' AND contract_version = 'dhan-daily-v1-provisional')",
+            name="ck_source_contract",
+        ),
         CheckConstraint(
             "qualification IN ('UNVERIFIED','QUALIFIED_FOR_RESEARCH','RESTRICTED')",
             name="ck_qualification",

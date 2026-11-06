@@ -1,7 +1,8 @@
 import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMarketRefresh } from './useMarketRefresh';
 import ResearchDashboard from './ResearchDashboard';
 import ComparisonPanel from './ComparisonPanel';
-import { allPages, ApiError, Batch, Call, client, Instrument, Issue, Observation, SeriesMeta, Source, Watchlist } from './api';
+import { allPages, canResearch, ensureProviderHistory, acquisitionMessage, hasLiveRetrieval, ApiError, Batch, Call, client, Instrument, Issue, Observation, SeriesMeta, Source, Watchlist } from './api';
 
 type Tab = 'Research dashboard' | 'ETF comparisons' | 'History & quality' | 'CSV imports' | 'Instruments & watchlists' | 'Source qualification';
 const tabs: Tab[] = ['Research dashboard', 'ETF comparisons', 'History & quality', 'CSV imports', 'Instruments & watchlists', 'Source qualification'];
@@ -26,7 +27,7 @@ export default function App() {
   return <div className="shell">
     <aside className="sidebar"><a className="brand" href="#main"><span className="brand-mark">Au<span>Ag</span></span><span>BULLION<br/><small>INTELLIGENCE</small></span></a>
       <div className="sidebar-caption">PERSONAL RESEARCH WORKSPACE</div>
-      <div className="sidebar-note"><span className="local-dot"/> Local workspace<br/><small>CSV data inspection · VS-01</small></div>
+      <div className="sidebar-note"><span className="local-dot"/> Local workspace<br/><small>Historical data inspection · VS-01</small></div>
       <div className="sidebar-bottom">Evidence before interpretation.<p>Daily ETF observations, with their source and limitations kept in view.</p><Badge>Research only</Badge></div>
     </aside>
     <main id="main">
@@ -69,6 +70,9 @@ function Workbench({ token }: { token: string }) {
   }
   const selected = instruments.find(i => i.id === instrumentId);
   const source = sources.find(s => s.id === sourceId);
+  useEffect(() => {
+    if (source) setBasis(source.source_kind === 'DHANHQ' ? 'PROVIDER_ADJUSTED' : 'RAW_CLOSE');
+  }, [sourceId, source?.source_kind]);
   return <div className="workspace">
     <div className="page-heading"><div><div className="eyebrow">MARKET DATA · FOUNDATION</div><h1>Data workbench</h1><p>Gold & silver ETF history, with evidence attached.</p></div><div className="workspace-count"><strong>{instruments.length}</strong><span>configured listings</span></div></div>
     <div className="scope-note"><span className="scope-icon">i</span>Historical data inspection. Prices are descriptive, not live quotes or executable recommendations.</div>
@@ -94,31 +98,45 @@ function Workbench({ token }: { token: string }) {
 function History({ api, instrument, source, basis }: { api: Call; instrument?: Instrument; source?: Source; basis: string }) {
   const [start, setStart] = useState(''); const [end, setEnd] = useState('');
   const [asOf, setAsOf] = useState('');
+  const [appliedRange, setAppliedRange] = useState({ start: '', end: '', assessment: '' });
   const [rows, setRows] = useState<Observation[]>([]);
   const [meta, setMeta] = useState<SeriesMeta | null>(null);
   const [next, setNext] = useState<string | null>(null);
   const [error, setError] = useState(''); const [loading, setLoading] = useState(false);
+  const [acquisition, setAcquisition] = useState('');
   const controller = useRef<AbortController | null>(null);
   const query = useRef(0);
-  const eligible = instrument && source?.qualification === 'QUALIFIED_FOR_RESEARCH';
-  const load = useCallback(async (cursor?: string, rangeStart = '', rangeEnd = '', assessment = '') => {
-    if (!instrument || !source || source.qualification !== 'QUALIFIED_FOR_RESEARCH') return;
+  const eligible = instrument && source && canResearch(source);
+  const load = useCallback(async (cursor?: string, rangeStart = '', rangeEnd = '', assessment = '', refresh = false) => {
+    if (!instrument || !source || !canResearch(source)) return;
     controller.current?.abort(); const abort = new AbortController(); controller.current = abort;
     const identity = ++query.current; setLoading(true); setError('');
-    if (!cursor) { setRows([]); setMeta(null); setNext(null); }
+    if (!cursor) { setNext(null); setAcquisition(''); }
     const params = new URLSearchParams({ source_id: source.id, basis, limit: '100' });
     if (rangeStart) params.set('start', rangeStart); if (rangeEnd) params.set('end', rangeEnd);
     if (assessment) params.set('assessment_as_of', assessment); if (cursor) params.set('cursor', cursor);
     try {
+      let failed = false;
+      if (!cursor) {
+        try {
+          const update = basis === 'PROVIDER_ADJUSTED' ? await ensureProviderHistory(api, instrument, source, rangeStart, rangeEnd, abort.signal, 0, refresh) : null;
+          if (identity !== query.current) return;
+          setAcquisition(acquisitionMessage(update)); failed = Boolean(update?.error);
+        } catch (e) { if (abort.signal.aborted) throw e; setError(describe(e)); failed = true; }
+      }
       const result = await api<Observation[]>('/instruments/' + instrument.id + '/history?' + params, { signal: abort.signal });
       if (identity !== query.current) return;
+      if (failed && result.data.length === 0) return;
       setRows(old => cursor ? [...old, ...result.data] : result.data);
       setMeta(result.meta as unknown as SeriesMeta); setNext(result.meta?.page?.next_cursor || null);
+      setAppliedRange({ start: rangeStart, end: rangeEnd, assessment });
     } catch (e) {
       if (identity === query.current && !(e instanceof DOMException && e.name === 'AbortError')) { setError(describe(e)); setNext(null); }
     } finally { if (identity === query.current) setLoading(false); }
   }, [api, basis, instrument, source]);
   useEffect(() => { void load(); return () => { ++query.current; controller.current?.abort(); }; }, [load]);
+  const autoRefresh = useCallback(() => { if (!loading) void load(undefined, start, end, asOf); }, [load, loading, start, end, asOf]);
+  useMarketRefresh(api, source, autoRefresh);
   if (!instrument || !source) return <Empty>Configure an ETF listing and a data source, then import qualified daily CSV observations to inspect history.</Empty>;
   if (!eligible) return <Empty>This source is {source.qualification.toLowerCase()}. Record its usage and retention evidence in Source qualification before viewing or importing prices.</Empty>;
   return <div>
@@ -127,11 +145,14 @@ function History({ api, instrument, source, basis }: { api: Call; instrument?: I
       <Field label="From"><input type="date" value={start} onChange={e => setStart(e.target.value)}/></Field>
       <Field label="Through"><input type="date" value={end} onChange={e => setEnd(e.target.value)}/></Field>
       <Field label="Assessment as of (optional ISO + timezone)"><input placeholder="Leave blank for current UTC" value={asOf} onChange={e => setAsOf(e.target.value)}/></Field>
-      <button disabled={loading}>Apply range</button>
+      <button disabled={loading}>{loading ? 'Applying range...' : 'Apply range'}</button>
+      {hasLiveRetrieval(source) && <button type="button" disabled={loading} onClick={() => void load(undefined, start, end, asOf, true)}>Refresh from provider</button>}
     </form>
     {error && <div role="alert" className="notice error">{error}<button onClick={() => void load(undefined, start, end, asOf)}>Reload series</button></div>}
-    {loading && <div role="status" className="loading">Loading persisted observations…</div>}
+    {loading && <div role="status" className="loading">{hasLiveRetrieval(source) ? 'Checking coverage and downloading missing historical observations...' : 'Loading observations...'}</div>}
+    {acquisition && <p role="status" className="notice">{acquisition}</p>}
     {meta && <>
+      {!loading && <p role="status">Range applied: {appliedRange.start || 'start of loaded history'} through {appliedRange.end || 'end of loaded history'}. {meta.coverage.count} matching observations.</p>}
       <div className="metrics"><div className="metric"><span>Selected observations</span><strong>{meta.coverage.count}</strong><small>{meta.coverage.range_first_date || 'No history'} → {meta.coverage.range_last_date || '—'}</small></div>
         <div className="metric"><span>Dataset last session</span><strong className="date-metric">{meta.coverage.dataset_last_date || 'Unknown'}</strong><small>Entire selected source & basis, not just this range</small></div>
         <div className="metric"><span>Freshness assessment</span><strong className="date-metric">{meta.freshness.status}</strong><small>{meta.freshness.reason.replaceAll('_', ' ')}</small></div>
@@ -144,8 +165,12 @@ function History({ api, instrument, source, basis }: { api: Call; instrument?: I
         <p className="footnote">Historical CSV is unverified for replay. Missing publication timestamps remain unknown; ingestion time does not establish market availability.</p>
       </section>
       <section className="card history"><div className="card-title"><h3>Daily observations</h3><span className="muted">{rows.length} shown · prices stored as exact decimals</span></div>
-        {!rows.length ? <Empty>No observations in this range. Import a qualified CSV or change the dates.</Empty> : <div className="table-wrap"><table><thead><tr><th>Trading date</th><th className="numeric">Close · INR</th><th>Open / High / Low</th><th className="numeric">Volume</th><th>Publication / ingestion evidence</th><th>Provenance</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td>{row.trading_date}</td><td className="numeric price">{row.close}</td><td>{row.open ?? '—'} / {row.high ?? '—'} / {row.low ?? '—'}</td><td className="numeric">{row.volume === null ? 'Unknown' : Number.isSafeInteger(row.volume) ? row.volume : 'Unavailable: integer precision'}</td><td><span>Published: {stamp(row.provider_published_at)}</span><small>Ingested: {stamp(row.ingested_at)}</small><small>Event: {stamp(row.event_time)} · {row.event_precision}</small></td><td><code title={row.batch_id}>{row.batch_id.slice(0, 8)}…</code><small>CSV row {row.row_number}</small></td></tr>)}</tbody></table></div>}
-        {next && <button disabled={loading} onClick={() => void load(next, start, end, asOf)}>Load more observations</button>}
+        {!rows.length ? <Empty>{source.source_kind === 'DHANHQ' && basis !== 'PROVIDER_ADJUSTED'
+          ? <>This DhanHQ source provides Provider adjusted prices. Select Provider adjusted under Price basis to view its loaded history.</>
+          : meta.coverage.dataset_count > 0
+            ? <>No observations in the applied range. Loaded history is {meta.coverage.dataset_first_date} through {meta.coverage.dataset_last_date}. {hasLiveRetrieval(source) ? 'Unavailable sessions are shown in the retrieval status above; no prices are filled.' : 'Apply range filters this loaded history; it does not download newer data.'}</>
+            : <>No loaded history for this ETF, source and price basis. {hasLiveRetrieval(source) ? 'Apply a range to request missing history; see retrieval status for availability.' : 'Applying a range does not download market data.'}</>}</Empty> : <div className="table-wrap"><table><thead><tr><th>Trading date</th><th className="numeric">Close · INR</th><th>Open / High / Low</th><th className="numeric">Volume</th><th>Publication / ingestion evidence</th><th>Provenance</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td>{row.trading_date}</td><td className="numeric price">{row.close}</td><td>{row.open ?? '—'} / {row.high ?? '—'} / {row.low ?? '—'}</td><td className="numeric">{row.volume === null ? 'Unknown' : Number.isSafeInteger(row.volume) ? row.volume : 'Unavailable: integer precision'}</td><td><span>Published: {stamp(row.provider_published_at)}</span><small>Ingested: {stamp(row.ingested_at)}</small><small>Event: {stamp(row.event_time)} · {row.event_precision}</small></td><td><code title={row.batch_id}>{row.batch_id.slice(0, 8)}…</code><small>CSV row {row.row_number}</small></td></tr>)}</tbody></table></div>}
+        {next && <button disabled={loading} onClick={() => void load(next, appliedRange.start, appliedRange.end, appliedRange.assessment)}>Load more observations</button>}
       </section>
     </>}
   </div>;
@@ -193,7 +218,7 @@ function Sources({ sources, mutate, busy }: { sources: Source[]; mutate: Mutate;
   const [error, setError] = useState('');
   async function create(e: FormEvent<HTMLFormElement>) {
     e.preventDefault(); const form = e.currentTarget; const d = new FormData(form);
-    try { await mutate('/data-sources', { label: d.get('label'), contract_version: 'csv-v1', profile: { data_class: d.get('data_class'), policy_version: 'quality-v1' } }); form.reset(); }
+    try { const kind = String(d.get('source_kind') || 'USER_CSV'); await mutate('/data-sources', { label: d.get('label'), source_kind: kind, contract_version: kind === 'USER_CSV' ? 'csv-v1' : 'dhan-daily-v1-provisional', profile: { data_class: d.get('data_class'), policy_version: 'quality-v1' } }); form.reset(); }
     catch { /* Parent renders API error. */ }
   }
   async function qualify(e: FormEvent<HTMLFormElement>) {
@@ -203,8 +228,8 @@ function Sources({ sources, mutate, busy }: { sources: Source[]; mutate: Mutate;
       await mutate('/data-sources/' + sourceId + '/qualification', { qualification: d.get('qualification'), rights_evidence_ref: d.get('rights_evidence_ref') || null, retention_review_ref: d.get('retention_review_ref') || null, permitted_uses: Object.fromEntries(['retrieval', 'storage', 'analysis', 'display'].map(k => [k, d.get(k) === 'on'])), profile }, 'PATCH');
     } catch (e) { setError(describe(e)); }
   }
-  return <div className="two-column"><section className="card"><div className="eyebrow">EXPLICIT SOURCE CONTRACT</div><h2>Register a CSV source</h2><p>Registration starts unverified. Record evidence before prices can be imported or displayed.</p>
-    <form onSubmit={e => void create(e)}><Field label="Source label"><input name="label" required maxLength={256}/></Field><Field label="Data classification"><select name="data_class"><option value="REAL_MARKET">Real market data</option><option value="SYNTHETIC_TEST">Synthetic test data · visibly labeled</option></select></Field><button className="primary" disabled={busy}>Register source</button></form>
+  return <div className="two-column"><section className="card"><div className="eyebrow">EXPLICIT SOURCE CONTRACT</div><h2>Register a data source</h2><p>Registration starts unverified. Record evidence before prices can be imported or displayed.</p>
+    <form onSubmit={e => void create(e)}><Field label="Source label"><input name="label" required maxLength={256}/></Field><Field label="Source type"><select name="source_kind"><option value="USER_CSV">CSV file import</option><option value="DHANHQ">DhanHQ historical data</option></select></Field><Field label="Data classification"><select name="data_class"><option value="REAL_MARKET">Real market data</option><option value="SYNTHETIC_TEST">Synthetic test data · visibly labeled</option></select></Field><button className="primary" disabled={busy}>Register source</button></form>
     <div className="item-list">{sources.map(s => <button className={'source-item ' + (sourceId === s.id ? 'selected' : '')} key={s.id} onClick={() => setSourceId(s.id)}><strong>{s.label}</strong><small>{s.profile.data_class} · {s.qualification}</small></button>)}</div>
   </section><section className="card"><div className="eyebrow">OWNER-RECORDED EVIDENCE</div><h2>Qualification & quality profile</h2>
     <div className="notice">Qualification records your review. It does not verify a license, ETF sample or market prices independently.</div>
@@ -215,7 +240,7 @@ function Sources({ sources, mutate, busy }: { sources: Source[]; mutate: Mutate;
       <Field label="Retention and deletion review reference"><input name="retention_review_ref" defaultValue={String(selected.permitted_uses.retention_review_ref || '')} maxLength={1000}/></Field>
       <fieldset><legend>Permitted uses confirmed by evidence</legend>{['retrieval', 'storage', 'analysis', 'display'].map(use => <label className="check" key={use}><input name={use} type="checkbox" defaultChecked={selected.permitted_uses[use] === true}/>{use}</label>)}</fieldset>
       <Field label="Quality profile JSON"><textarea name="profile" rows={12} spellCheck={false} defaultValue={JSON.stringify(selected.profile, null, 2)}/></Field>
-      <details><summary>Profile guidance</summary><p>Keep calendar and freshness null when unknown. Calendar requires evidence_ref, version, coverage_start, coverage_end and explicit session_dates. Freshness requires evidence_ref, a timezone-aware assessment_as_of and expected_latest_session; it applies only at that instant. known_break_dates are descriptive. Provider-adjusted imports require adjustment_definition_ref.</p><p>Use references to reviewed evidence. Do not paste credentials or account data.</p></details>
+      <details><summary>Profile guidance</summary><p>Keep calendar and freshness null when unknown. Calendar requires evidence_ref, version, coverage_start, coverage_end and explicit session_dates. Freshness requires evidence_ref, a timezone-aware assessment_as_of and expected_latest_session; it applies only at that instant. known_break_dates are descriptive. Provider-adjusted imports require adjustment_definition_ref. Provider imports also require acquisition_review with timestamp_policy, allow_provisional_session_dates and review_ref; this records your review of provisional session dates and does not verify the provider convention.</p><p>Use references to reviewed evidence. Do not paste credentials or account data.</p></details>
       {error && <div role="alert" className="notice error">{error}</div>}<button className="primary" disabled={busy}>Save qualification review</button>
     </form>}
   </section></div>;

@@ -33,7 +33,7 @@ export async function allPages<T>(api: Call, path: string): Promise<T[]> {
   return result;
 }
 export interface Instrument { id: string; exchange: string; symbol: string; name: string; metal: string; currency: string; active: boolean; data_revision: number }
-export interface Source { id: string; label: string; qualification: string; rights_evidence_ref: string | null; permitted_uses: Record<string, unknown>; profile: Record<string, unknown> & { data_class: string; policy_version: string }; reviewed_at: string | null }
+export interface Source { source_kind?: 'USER_CSV' | 'DHANHQ'; id: string; label: string; qualification: string; rights_evidence_ref: string | null; permitted_uses: Record<string, unknown>; profile: Record<string, unknown> & { data_class: string; policy_version: string }; reviewed_at: string | null }
 export interface Watchlist { id: string; name: string; members: Instrument[] }
 export interface Batch { id: string; request_key: string; status: string; new_count: number; row_count: number; duplicate_count: number; error_count: number; data_class: string; submitted_at: string; replayed: boolean; file_sha256: string; profile_sha256: string; profile_snapshot: Record<string, unknown>; error_code: string | null }
 export interface Issue { id: string; row_number: number | null; code: string; severity: string; details: Record<string, unknown> }
@@ -56,3 +56,52 @@ export interface IndicatorResult { status: string; unavailable_reason: string | 
 export interface ComparisonValue { trading_date: string; close: string; rebased_price: string | null; volume: number | null; observation_id: string; batch_id: string; row_number: number }
 export interface ComparisonSeries { key: string; currency: string; price_basis: string; data_class: string; close_end: string | null; volume_end: number | null; price_change_percent: string | null; input_fingerprint: string; values: ComparisonValue[]; meta: SeriesMeta & { instrument: { id: string; symbol: string; name: string; metal: string }; input_fingerprint: string } }
 export interface ComparisonResult { status: string; unavailable_reason: string | null; method_version: string; computed_at: string; requested_period: { start: string; end: string }; effective_period: { start: string | null; end: string | null }; common_dates: string[]; common_observation_count: number; input_fingerprint: string; limitations: string[]; series: ComparisonSeries[] }
+
+export function canResearch(source: Source | undefined): boolean {
+  return source?.qualification === 'QUALIFIED_FOR_RESEARCH' || Boolean(
+    source?.qualification === 'TRANSIENT_OWNER_AUTHORIZED_UNQUALIFIED' &&
+    source.permitted_uses.storage === false &&
+    ['retrieval', 'analysis', 'display'].every(use => source.permitted_uses[use] === true)
+  );
+}
+
+export interface AcquisitionResult {
+  status: string; requests: number; added: number; revised: number; error: string | null;
+  coverage: Record<string, number>; dataset_count: number; dataset_first_date: string | null;
+  dataset_last_date: string | null; warmup_complete: boolean; calendar_unassessed: boolean;
+  latest_completed_session_candidate: string; latest_provider_eligible_session_candidate: string;
+}
+export function hasLiveRetrieval(source?: Source): boolean {
+  return source?.source_kind === 'DHANHQ' && source.qualification === 'TRANSIENT_OWNER_AUTHORIZED_UNQUALIFIED' && source.profile.data_class === 'REAL_MARKET';
+}
+export async function ensureProviderHistory(api: Call, instrument: Instrument, source: Source, start: string, end: string, signal: AbortSignal, warmup = 0, refresh = false): Promise<AcquisitionResult | null> {
+  if (!hasLiveRetrieval(source)) return null;
+  return (await api<AcquisitionResult>('/market-data/ensure', { method: 'POST', signal,
+    body: JSON.stringify({ instrument_id: instrument.id, source_id: source.id,
+      start: start || null, end: end || null, warmup_bars: warmup, refresh }) })).data;
+}
+export function acquisitionMessage(result: AcquisitionResult | null): string {
+  if (!result) return '';
+  const errors: Record<string, string> = {
+    TOKEN_EXPIRED: 'DhanHQ authentication has expired. Replace the token locally; no renewal was attempted.',
+    INVALID_CREDENTIALS: 'DhanHQ authentication was rejected. Check the token locally.',
+    MISSING_ACCESS_TOKEN: 'DhanHQ access token is missing. Configure it locally in the backend environment.',
+    INVALID_CONFIGURATION: 'DhanHQ backend configuration is invalid. Check local settings without sharing credentials.',
+    DATA_ENTITLEMENT_REQUIRED: 'An active DhanHQ Data API entitlement is required.',
+    ACCESS_OR_ENTITLEMENT_REQUIRED: 'DhanHQ access or Data API entitlement was rejected.',
+    AUTH_EXPIRED: 'DhanHQ authentication has expired. Replace the token locally; no renewal was attempted.',
+    AUTH_INVALID_OR_EXPIRED: 'DhanHQ authentication is invalid or expired. Check the token locally.',
+    AUTH_INVALID: 'DhanHQ authentication was rejected. Check the token locally.',
+    ACCESS_DENIED: 'DhanHQ access was denied. Check Data API entitlement.',
+    RATE_LIMITED: 'DhanHQ rate limit reached. Retrieval is paused; no retry was made.',
+    NETWORK_TIMEOUT: 'DhanHQ request timed out. Cached observations remain available.',
+    MARKET_DATA_DISABLED: 'Live market-data retrieval is disabled in backend configuration.',
+    PROVIDER_BACKOFF: 'Provider retrieval is paused after an earlier failure. Cached data remains available.',
+    DATA_API_ENTITLEMENT_REQUIRED: 'An active DhanHQ Data API entitlement is required.',
+  };
+  if (result.error) return (errors[result.error] || 'Historical data is temporarily unavailable (' + result.error + '). Cached observations remain available.');
+  return (result.requests ? 'Historical data updated successfully. ' + result.added + ' observations added. ' : 'Historical data loaded from the existing dataset. ')
+    + (result.status === 'PARTIAL' ? 'Some requested sessions are not yet available. ' : '')
+    + (result.warmup_complete === false ? 'Indicator warm-up history remains incomplete. ' : '')
+    + 'Provider-eligible session: ' + result.latest_provider_eligible_session_candidate + '. Data is transient and will be lost after backend restart.';
+}

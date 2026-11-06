@@ -1,5 +1,6 @@
+import { useMarketRefresh } from './useMarketRefresh';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError, Call, IndicatorResult, Instrument, PriceChartResult, SeriesMeta, Source } from './api';
+import { ApiError, canResearch, ensureProviderHistory, acquisitionMessage, hasLiveRetrieval, Call, IndicatorResult, Instrument, PriceChartResult, SeriesMeta, Source } from './api';
 import { ChartBoundary, DataClass, ResearchField as Field, ResearchQuality, researchProblem } from './ResearchShared';
 import type { ResearchTrace } from './ResearchChart';
 const Chart = lazy(() => import('./ResearchChart'));
@@ -16,14 +17,15 @@ export default function ResearchDashboard({ api, instrument, source, basis }: { 
   const [draft, setDraft] = useState<Settings>(empty);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [problem, setProblem] = useState('');
+  const [acquisition, setAcquisition] = useState('');
   const [busy, setBusy] = useState(false);
   const [shownRows, setShownRows] = useState(100);
   const generation = useRef(0), abort = useRef<AbortController | null>(null);
   const load = useCallback(async (settings: Settings) => {
     const current = ++generation.current;
     abort.current?.abort(); const controller = new AbortController(); abort.current = controller;
-    setLoaded(null); setProblem(''); setShownRows(100);
-    if (!instrument || source?.qualification !== 'QUALIFIED_FOR_RESEARCH') { setBusy(false); return; }
+    setProblem(''); setAcquisition(''); setShownRows(100);
+    if (!instrument || !source || !canResearch(source)) { setBusy(false); return; }
     for (const method of methods.filter(m => settings[m])) {
       const raw = period(settings, method), n = Number(raw);
       if (!/^\d+$/.test(raw) || !Number.isInteger(n) || n < (method === 'RSI' ? 2 : 1) || n > 10000) { setBusy(false); setProblem(method + ': enter an explicit supported integer lookback.'); return; }
@@ -34,6 +36,13 @@ export default function ResearchDashboard({ api, instrument, source, basis }: { 
     if (settings.asOf) params.set('assessment_as_of', settings.asOf);
     const path = '/instruments/' + instrument.id;
     try {
+      let failed = false;
+      try {
+        const warmup = Math.max(0, ...methods.filter(m => settings[m]).map(m => Number(period(settings, m)) + (m === 'RSI' ? 1 : 0)));
+        const update = basis === 'PROVIDER_ADJUSTED' ? await ensureProviderHistory(api, instrument, source, settings.start, settings.end, controller.signal, warmup) : null;
+        if (current !== generation.current) return;
+        setAcquisition(acquisitionMessage(update)); failed = Boolean(update?.error);
+      } catch (error) { if (controller.signal.aborted) throw error; setProblem(researchProblem(error)); failed = true; }
       const price = await api<PriceChartResult>(path + '/chart?' + params, { signal: controller.signal });
       if (!price.meta || !Number.isSafeInteger(price.data.series_ref.revision)) throw new Error('Research snapshot identity is unavailable. Reload the series.');
       const calculations = await Promise.all(methods.filter(m => settings[m]).map(async method => {
@@ -48,14 +57,22 @@ export default function ResearchDashboard({ api, instrument, source, basis }: { 
       if (current !== generation.current || controller.signal.aborted) return;
       if (calculations.some(c => c.result && (c.result.indicator_id !== c.method || c.result.n !== c.n))) throw new Error('RESEARCH_IDENTITY_MISMATCH: indicator parameters differ from the request. Reload research.');
       if (calculations.some(c => c.result && !sameRef(price.data.series_ref, c.result.series_ref))) throw new Error('SNAPSHOT_CHANGED: prices and indicators changed during loading. Reload to use one version.');
+      if (failed && price.data.points.length === 0) return;
       setLoaded({ chart: price.data, meta: price.meta as unknown as SeriesMeta, calculations });
-    } catch (error) { if (current === generation.current && !controller.signal.aborted) setProblem(researchProblem(error)); }
+    } catch (error) {
+      if (current === generation.current && !controller.signal.aborted) {
+        const message = researchProblem(error); setProblem(message);
+        if (/SNAPSHOT_CHANGED|RESEARCH_IDENTITY_MISMATCH/.test(message)) setLoaded(null);
+      }
+    }
     finally { if (current === generation.current) setBusy(false); }
   }, [api, instrument, source, basis]);
   useEffect(() => { setDraft(empty); void load(empty); return () => { ++generation.current; abort.current?.abort(); }; }, [load]);
+  const autoRefresh = useCallback(() => { if (!busy) void load(draft); }, [load, busy, draft]);
+  useMarketRefresh(api, source, autoRefresh);
   function rangeEdit(key: 'start' | 'end' | 'asOf', value: string) { ++generation.current; abort.current?.abort(); setBusy(false); setLoaded(null); setProblem(''); setDraft(old => ({ ...old, [key]: value })); }
   if (!instrument || !source) return <div className="empty">Select a configured ETF listing and source to open the research dashboard.</div>;
-  if (source.qualification !== 'QUALIFIED_FOR_RESEARCH') return <div className="empty">This source is {source.qualification.toLowerCase()}. Review its usage evidence before research.</div>;
+  if (!canResearch(source)) return <div className="empty">This source is {source.qualification.toLowerCase()}. Review its usage evidence before research.</div>;
   const calculations = loaded?.calculations.filter(c => draft[c.method] && Number(period(draft, c.method)) === c.n) || [];
   const price = loaded?.chart;
   const valueMaps = new Map(calculations.map(c => [c.method, new Map(c.result?.values.map(v => [v.trading_date, v]) || [])]));
@@ -78,7 +95,8 @@ export default function ResearchDashboard({ api, instrument, source, basis }: { 
         <button className="primary" disabled={busy}>Apply research settings</button>
       </form>
     </section>
-    {busy && <p role="status" className="loading">Loading research evidence.</p>}
+    {busy && <p role="status" className="loading">{hasLiveRetrieval(source) ? 'Checking coverage and downloading missing historical observations; then recalculating research.' : 'Loading research evidence.'}</p>}
+    {acquisition && <p role="status" className="notice">{acquisition}</p>}
     {problem && <div role="alert" className="notice error">{problem}<button onClick={() => void load(draft)}>Reload research</button></div>}
     {loaded && <>
       <ResearchQuality meta={loaded.meta}/>

@@ -101,6 +101,7 @@ def get_db(request: Request):
         if request.method == "GET" or request.url.path == "/api/v1/comparisons":
             conn = conn.execution_options(isolation_level="REPEATABLE READ")
         with Session(bind=conn, expire_on_commit=False) as db:
+            db.info["transient_research"] = request.app.state.transient_research.snapshot()
             yield db
 
 
@@ -112,7 +113,7 @@ def response(request, data, meta=None, status=200):
     return JSONResponse(plain({"data": data, "meta": info}), status_code=status)
 
 
-def paginated(request, db, statement, model, scope, cursor, limit):
+def paginated(request, db, statement, model, scope, cursor, limit, extra_rows=()):
     if cursor:
         last = UUID(
             decode_cursor(
@@ -121,6 +122,9 @@ def paginated(request, db, statement, model, scope, cursor, limit):
         )
         statement = statement.where(model.id > last)
     rows = list(db.scalars(statement.order_by(model.id).limit(limit + 1)))
+    if extra_rows:
+        extras = [row for row in extra_rows if not cursor or row.id > last]
+        rows = sorted(rows + extras, key=lambda row: row.id)
     more = len(rows) > limit
     rows = rows[:limit]
     next_cursor = (
@@ -134,7 +138,13 @@ def paginated(request, db, statement, model, scope, cursor, limit):
     return rows, {"next_cursor": next_cursor, "limit": limit}
 
 
-def create_app(settings: Settings | None = None):
+def create_app(
+    settings: Settings | None = None,
+    *,
+    transient_provider_factory=None,
+    market_provider=None,
+    market_calendar=None,
+):
     settings = settings or Settings()
     engine = create_engine(
         settings.database_url, pool_pre_ping=True, connect_args={"connect_timeout": 5}
@@ -154,6 +164,38 @@ def create_app(settings: Settings | None = None):
         openapi_url=None,
     )
     app.state.settings, app.state.engine = settings, engine
+    from .transient_research import TransientResearch
+
+    app.state.transient_research = TransientResearch()
+    app.state.transient_provider_factory = transient_provider_factory
+    import os
+    from pathlib import Path
+    from .dhan_config import load_dhan_configuration
+    from .dhan_provider import DhanDailyProvider
+    from .market_data_service import MarketDataService
+    from .schemas import CalendarProfile
+
+    calendar = market_calendar or CalendarProfile.model_validate_json(
+        Path(__file__).with_name("nse_calendar.json").read_bytes()
+    )
+    provider = market_provider or DhanDailyProvider(
+        load_dhan_configuration(
+            environ={
+                **os.environ,
+                "DHAN_DATA_API_ENABLED": "true" if settings.market_data_enabled else "false",
+            }
+        ),
+        timeout_seconds=settings.market_data_timeout_seconds,
+    )
+    app.state.market_data = MarketDataService(
+        provider, app.state.transient_research, settings, calendar
+    )
+    if settings.market_data_enabled:
+        app.state.transient_research.configure(
+            provider.listings(),
+            calendar,
+            data_class="SYNTHETIC_TEST" if market_provider else "REAL_MARKET",
+        )
     app.add_middleware(BodyLimitMiddleware, max_bytes=settings.max_import_bytes + 65_536)
 
     @app.middleware("http")
@@ -304,9 +346,20 @@ def create_app(settings: Settings | None = None):
             db,
             stmt,
             Instrument,
-            digest({"list": "instruments", "metal": metal}),
+            digest(
+                {
+                    "list": "instruments",
+                    "metal": metal,
+                    **(
+                        {"transient": db.info["transient_research"].revision}
+                        if db.info["transient_research"].listings()
+                        else {}
+                    ),
+                }
+            ),
             cursor,
             limit,
+            db.info["transient_research"].listings(metal),
         )
         return response(request, rows, {"page": page})
 
@@ -411,7 +464,16 @@ def create_app(settings: Settings | None = None):
     @router.get("/data-sources")
     def sources(request: Request, db: DB, cursor: str | None = None, limit: Limit = 100):
         rows, page = paginated(
-            request, db, select(DataSource), DataSource, "data-sources", cursor, limit
+            request,
+            db,
+            select(DataSource),
+            DataSource,
+            "data-sources" + db.info["transient_research"].revision
+            if db.info["transient_research"].sources()
+            else "data-sources",
+            cursor,
+            limit,
+            db.info["transient_research"].sources(),
         )
         return response(request, rows, {"page": page})
 
@@ -420,6 +482,7 @@ def create_app(settings: Settings | None = None):
         with db.begin():
             item = DataSource(
                 label=body.label,
+                source_kind=body.source_kind,
                 contract_version=body.contract_version,
                 profile=body.profile.model_dump(mode="json"),
             )
@@ -616,9 +679,16 @@ def create_app(settings: Settings | None = None):
                     and_(Observation.trading_date == day, Observation.id > key),
                 )
             )
-        rows = list(
-            db.scalars(stmt.order_by(Observation.trading_date, Observation.id).limit(limit + 1))
-        )
+        memory = db.info["transient_research"]
+        if memory.has_series(instrument_id, source_id):
+            rows = list(memory.rows(instrument_id, source_id, basis, start, end))
+            if cursor:
+                rows = [r for r in rows if (r.trading_date, r.id) > (day, key)]
+            rows = rows[: limit + 1]
+        else:
+            rows = list(
+                db.scalars(stmt.order_by(Observation.trading_date, Observation.id).limit(limit + 1))
+            )
         more = len(rows) > limit
         rows = rows[:limit]
         next_cursor = (
@@ -653,6 +723,15 @@ def create_app(settings: Settings | None = None):
             request, series_meta(db, instrument, source, basis, start, end, assessment_as_of)
         )
 
+    from .transient_uat import register_transient_uat
+
+    register_transient_uat(router, response)
+    from .market_data_routes import register_market_data
+
+    register_market_data(router, response)
+    from .transient_handoff import register_handoff
+
+    register_handoff(router, response)
     register_research(router, get_db, response)
     app.include_router(router)
     return app

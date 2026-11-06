@@ -4,9 +4,10 @@ import io
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from uuid import UUID
 from sqlalchemy import select, text
+from .daily_values import price
 from .errors import APIError
 from .models import DataSource, ImportBatch, ImportRow, Instrument, Observation, QualityResult
 from .schemas import ImportMetadata
@@ -37,20 +38,6 @@ class Report:
                     "details": {"field": field_name} if field_name else {},
                 }
             )
-
-
-def price(value: str) -> Decimal:
-    if not re.fullmatch(r"[+]?(?:\d+(?:\.\d*)?|\.\d+)", value):
-        raise ValueError()
-    try:
-        d = Decimal(value)
-        if not d.is_finite() or d <= 0 or d >= Decimal("100000000000000"):
-            raise ValueError()
-        if d.as_tuple().exponent < -10:
-            raise ValueError()
-        return d
-    except InvalidOperation:
-        raise ValueError() from None
 
 
 def instant(value: str):
@@ -223,8 +210,34 @@ def ingest(
     request_id: str,
     max_rows: int,
 ):
+    return _ingest(
+        db,
+        meta,
+        request_key,
+        request_id,
+        hashlib.sha256(content).hexdigest(),
+        len(content),
+        filename,
+        lambda instrument, source: parse_csv(content, meta, instrument, source, max_rows),
+        expected_source_kind="USER_CSV",
+    )
+
+
+def _ingest(
+    db,
+    meta,
+    request_key,
+    request_id,
+    file_hash,
+    byte_count,
+    filename,
+    prepare_report,
+    *,
+    expected_source_kind,
+    acquisition_provenance=None,
+):
+    """Shared atomic repository path for CSV and validated canonical acquisitions."""
     request_meta = meta.model_dump(mode="json")
-    file_hash = hashlib.sha256(content).hexdigest()
     lock_key = int.from_bytes(hashlib.sha256(request_key.bytes).digest()[:8], "big", signed=True)
     with db.begin():
         db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})
@@ -245,6 +258,8 @@ def ingest(
         )
         if source is None or instrument is None:
             raise APIError(404, "NOT_FOUND", "Instrument or source not found.")
+        if source.source_kind != expected_source_kind:
+            raise APIError(409, "SOURCE_KIND_MISMATCH", "Choose the matching source contract.")
         uses = source.permitted_uses
         if (
             source.qualification != "QUALIFIED_FOR_RESEARCH"
@@ -271,7 +286,7 @@ def ingest(
                 "BASIS_UNVERIFIED",
                 "An adjusted series requires its source adjustment definition.",
             )
-        report = parse_csv(content, meta, instrument, source, max_rows)
+        report = prepare_report(instrument, source)
         if not report.rows and not report.errors:
             report.add(None, "EMPTY_FILE")
         if not source.profile.get("calendar"):
@@ -312,6 +327,7 @@ def ingest(
             "rights_evidence_ref": source.rights_evidence_ref,
             "permitted_uses": uses,
             "reviewed_at": plain(source.reviewed_at),
+            **({"acquisition": acquisition_provenance} if acquisition_provenance else {}),
         }
         batch = ImportBatch(
             request_key=request_key,
@@ -321,7 +337,7 @@ def ingest(
             profile_sha256=digest(snapshot),
             profile_snapshot=snapshot,
             status="REJECTED" if report.errors else ("ACCEPTED" if pending else "NO_CHANGE"),
-            bytes=len(content),
+            bytes=byte_count,
             row_count=report.row_count,
             new_count=0 if report.errors else len(pending),
             duplicate_count=report.duplicates,

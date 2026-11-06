@@ -110,3 +110,13 @@ describe('price-only comparison UI',()=>{
     expect(screen.queryByRole('img',{name:'Price-only common-date comparison'})).toBeNull();
   });
 });
+
+
+it('displays owner-authorized transient research without granting storage qualification', async () => {
+  const transient = { ...source, qualification: 'TRANSIENT_OWNER_AUTHORIZED_UNQUALIFIED',
+    permitted_uses: { retrieval: true, analysis: true, display: true, storage: false } };
+  render(<ResearchDashboard api={client()} instrument={gold} source={transient} basis="RAW_CLOSE"/>);
+  expect(await screen.findByText('10.0000000000')).toBeInTheDocument();
+  expect(transient.qualification).not.toBe('QUALIFIED_FOR_RESEARCH');
+  expect(transient.permitted_uses.storage).toBe(false);
+});
