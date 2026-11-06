@@ -1,3 +1,4 @@
+import ReconciliationPanel from './ReconciliationPanel';
 import MarketSnapshot from './MarketSnapshot';
 import IntradayDashboard from './IntradayDashboard';
 import { supportsMarketSession } from './api';
@@ -126,9 +127,10 @@ function DailyDashboard({ api, instrument, source, basis }: { api: Call; instrum
 
 export default function ResearchDashboard(props:{api:Call;instrument?:Instrument;source?:Source;basis:string}) {
   const [view,setView]=useState<'daily'|'intraday'>('daily');
+  const [revision,setRevision]=useState(0);
   if(!supportsMarketSession(props.source)||!props.instrument)return <DailyDashboard {...props}/>;
   const synthetic=props.source?.profile.data_class==='SYNTHETIC_TEST';
-  return <div><MarketSnapshot api={props.api} synthetic={synthetic}/><div className="range-bar" role="group" aria-label="Research timeframe"><button aria-pressed={view==='daily'} onClick={()=>setView('daily')}>Daily research</button><button aria-pressed={view==='intraday'} onClick={()=>setView('intraday')}>Intraday research</button></div>
-    {view==='daily'?<DailyDashboard {...props}/>:<IntradayDashboard api={props.api} instrument={props.instrument} synthetic={synthetic}/>}
+  return <div><MarketSnapshot api={props.api} synthetic={synthetic} onReconciliation={()=>setRevision(r=>r+1)}/><ReconciliationPanel api={props.api} instrument={props.instrument} onChange={()=>setRevision(r=>r+1)}/><div className="range-bar" role="group" aria-label="Research timeframe"><button aria-pressed={view==='daily'} onClick={()=>setView('daily')}>Daily research</button><button aria-pressed={view==='intraday'} onClick={()=>setView('intraday')}>Intraday research</button></div>
+    {view==='daily'?<DailyDashboard key={revision} {...props}/>:<IntradayDashboard key={revision} api={props.api} instrument={props.instrument} synthetic={synthetic}/>}
   </div>;
 }

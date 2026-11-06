@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     market_data_auto_refresh_seconds: int = Field(default=0, ge=0, le=86400)
 
     # Step 5E: independent capability switches under the standing read-only gate.
+    market_stream_enabled: bool = False
     market_quotes_enabled: bool = False
     market_intraday_enabled: bool = False
     market_quote_refresh_seconds: int = Field(default=15, ge=5, le=3600)

@@ -13,6 +13,8 @@ from .provider_budget import operation_slot
 
 class MarketSessionService:
     def __init__(self, provider, daily, settings, budget, *, clock=None):
+        self.ist = IST
+        self.stream = None
         self.provider, self.daily, self.settings, self.budget = provider, daily, settings, budget
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self._quote_lock = RLock()
@@ -108,8 +110,9 @@ class MarketSessionService:
                 )
         return result
 
-    def get_quotes(self, *, refresh=False):
+    def get_quotes(self, *, refresh=False, cached_only=False):
         generation = self.quote_generation
+        stream_healthy = self.stream is not None and self.stream.healthy()
         with operation_slot(self._quote_lock):
             now = self.clock()
             error = None
@@ -125,7 +128,7 @@ class MarketSessionService:
                 due = True
             if not allowed:
                 error = "MARKET_QUOTES_DISABLED"
-            elif due:
+            elif due and not cached_only and not (stream_healthy and not refresh):
                 try:
                     result = self.budget.invoke(self.provider.retrieve_quotes)
                     self.quote_attempts += result.request_attempts
@@ -140,6 +143,11 @@ class MarketSessionService:
                         else None
                     )
                     for quote in result.quotes:
+                        previous = self.quotes.get(quote.listing.isin)
+                        if previous and previous.last_trade_at and (
+                            quote.last_trade_at is None or quote.last_trade_at < previous.last_trade_at
+                        ):
+                            continue  # A REST fallback/manual response cannot roll back a newer feed event.
                         self.quotes[quote.listing.isin] = quote
                     self.quote_error = error
                 except APIError as exc:
@@ -471,6 +479,8 @@ class MarketSessionService:
                 else "COMPLETE_TO_AVAILABLE_COMPLETED_BARS",
                 "not_official_daily_close": True,
             }
+        if provisional and getattr(self, "reconciliation", None) and self.reconciliation.superseded(instrument.id, today):
+            provisional = {**provisional, "classification": "SUPERSEDED_BY_HISTORICAL_FINAL", "superseded": True}
         latest = max((r.retrieved_at for r in visible), default=None)
         return {
             "instrument_id": str(instrument.id),

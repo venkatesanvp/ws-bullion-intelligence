@@ -5,9 +5,12 @@ export interface Envelope<T> { data: T; meta?: Record<string, unknown> & { page?
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public payload?: Envelope<unknown>) { super(message); }
 }
-export type Call = <T>(path: string, options?: RequestInit) => Promise<Envelope<T>>;
+export type Call = {
+  <T>(path: string, options?: RequestInit): Promise<Envelope<T>>;
+  stream?: (signal:AbortSignal, receive:(event:MarketEvent)=>void)=>Promise<void>;
+};
 export function client(token: string): Call {
-  return async <T,>(path: string, options: RequestInit = {}) => {
+  const call:Call = async <T,>(path: string, options: RequestInit = {}) => {
     const headers = new Headers(options.headers);
     headers.set('Authorization', 'Bearer ' + token);
     if (options.body && !(options.body instanceof FormData)) headers.set('Content-Type', 'application/json');
@@ -22,6 +25,18 @@ export function client(token: string): Call {
     if (!res.ok) throw new ApiError(res.status, payload.error?.code || 'REQUEST_FAILED', payload.error?.message || 'Request failed.', payload as Envelope<unknown>);
     return payload;
   };
+  call.stream=async(signal,receive)=>{
+    const response=await fetch(API_ROOT+'/market-data/stream-events',{headers:{Authorization:'Bearer '+token},signal,cache:'no-store'});
+    if(!response.ok||!response.body)throw new Error('Local streaming unavailable. Controlled quote polling remains available.');
+    const reader=response.body.getReader(),decoder=new TextDecoder();let pending='';
+    try{while(!signal.aborted){const item=await reader.read();if(item.done)break;
+      pending+=decoder.decode(item.value,{stream:true});if(pending.length>1048576)throw new Error('Local stream message limit exceeded.');
+      let boundary:number;while((boundary=pending.indexOf('\n\n'))>=0){const block=pending.slice(0,boundary);pending=pending.slice(boundary+2);
+        if(block.startsWith('data: '))receive(JSON.parse(block.slice(6)) as MarketEvent);
+      }
+    }}finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
+  };
+  return call;
 }
 export async function allPages<T>(api: Call, path: string): Promise<T[]> {
   const result: T[] = [];
@@ -152,3 +167,7 @@ export function exchangeTime(value?:string|null):string {
   const date=new Date(value);
   return Number.isFinite(date.getTime()) ? date.toLocaleString('en-IN',{timeZone:'Asia/Kolkata',hour12:false})+' IST' : 'Unavailable';
 }
+
+export interface StreamStatus {state:string;error:string|null;connection_attempts:number;frames:number;rejected_frames:number;price_updates:number;last_received_at:string|null;enabled:boolean}
+export interface MarketEvent {stream:StreamStatus;quotes:QuoteSnapshot;reconciliation_revision:number}
+export interface Reconciliation {symbol:string;session_date:string;classification:string;provisional_disposition:string;provisional_coverage:string;provisional_bar_count:number;differing_fields:string[];comparison_status:string;publication_state:string;requests:number;error:string|null;source_qualification:string;warnings:string[]}

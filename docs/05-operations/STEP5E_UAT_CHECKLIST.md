@@ -18,7 +18,7 @@ Owner acceptance: **Pending**. Only the owner can complete these results. Engine
 | P0-10 | Return to daily/history/comparisons | Existing daily inputs/formulas and common-date price-only behavior preserved | Pending |
 | P0-11 | Retry a retained historical range | Cache reuse, no duplicates/unnecessary download | Pending |
 
-## P1 (separate implementation/live gate)
+## P1 (engineer verification passed; owner gate remains pending)
 
 | ID | Owner test | Expected | Owner result / issue |
 | --- | --- | --- | --- |
@@ -28,6 +28,8 @@ Owner acceptance: **Pending**. Only the owner can complete these results. Engine
 | P1-04 | Reconcile provisional versus official daily | Differences/evidence recorded; official data supersedes provisional display | Pending |
 | P1-05 | Verify daily indicator integrity | No provisional/stream contamination; recalculation after official update | Pending |
 | P1-06 | Review failure/lifecycle controls | Disabled access honored; restart loss/retention limits understood | Pending |
+
+Engineer verification2026-11-06: P0 API/browser PASS; P1 real after-hours feed/browser/reconciliation PASS;647 backend,29 frontend,six Chromium workflows PASS. Temporary reconnect/fallback/publication transition verified with synthetic responses. Market-open feed continuity and a real next-session publication transition remain unverified. These engineer results do not fill owner result cells.
 
 Owner P0 disposition/date: __________. Owner P1 disposition/date: __________.
 

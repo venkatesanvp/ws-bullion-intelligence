@@ -1,3 +1,4 @@
+import asyncio
 import hmac
 import json
 import logging
@@ -153,6 +154,8 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app):
         yield
+        if hasattr(app.state, "market_stream"):
+            await asyncio.to_thread(app.state.market_stream.stop)
         engine.dispose()
 
     app = FastAPI(
@@ -197,6 +200,13 @@ def create_app(
     app.state.market_session = MarketSessionService(
         provider, app.state.market_data, settings, budget
     )
+    from .market_stream import MarketStream
+    from .market_reconciliation import MarketReconciliation
+
+    app.state.market_stream = MarketStream(app.state.market_session)
+    app.state.market_reconciliation = MarketReconciliation(app.state.market_session)
+    app.state.market_session.stream = app.state.market_stream
+    app.state.market_session.reconciliation = app.state.market_reconciliation
     if settings.market_data_enabled:
         app.state.transient_research.configure(
             provider.listings(),
@@ -743,6 +753,9 @@ def create_app(
     from .market_session_routes import register_session_market
 
     register_session_market(router, response)
+    from .market_stream_routes import register_market_stream
+
+    register_market_stream(router, response)
     from .market_cache_transfer import register_cache_transfer
 
     register_cache_transfer(router, response)

@@ -39,6 +39,7 @@ class Instrument:
     security_id: str
     isin: str
     metal: str
+    tick_size_paise: int | None = None
 
     def request_body(self) -> dict:
         return {
@@ -53,10 +54,10 @@ class Instrument:
 
 # Public, Step 5B-verified listing metadata. All four are primary instruments.
 INSTRUMENTS = (
-    Instrument("TATAGOLD", "21401", "INF277KA1976", "GOLD"),
-    Instrument("TATSILV", "21428", "INF277KA1984", "SILVER"),
-    Instrument("GOLDBEES", "14428", "INF204KB17I5", "GOLD"),
-    Instrument("SILVERBEES", "8080", "INF204KC1402", "SILVER"),
+    Instrument("TATAGOLD", "21401", "INF277KA1976", "GOLD", tick_size_paise=1),
+    Instrument("TATSILV", "21428", "INF277KA1984", "SILVER", tick_size_paise=1),
+    Instrument("GOLDBEES", "14428", "INF204KB17I5", "GOLD", tick_size_paise=1),
+    Instrument("SILVERBEES", "8080", "INF204KC1402", "SILVER", tick_size_paise=1),
 )
 
 

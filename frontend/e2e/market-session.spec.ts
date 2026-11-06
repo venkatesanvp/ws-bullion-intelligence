@@ -7,6 +7,7 @@ test('synthetic quotes, automatic refresh, intraday candles and timeframe indica
   const session=(await(await request.get('http://127.0.0.1:8002/api/v1/transient-session',{headers})).json()).data;
   const instrument=session.instruments.find((i:{symbol:string})=>i.symbol==='TATAGOLD');
   await page.route('http://127.0.0.1:8001/api/v1/**',async route=>{
+    if(route.request().url().endsWith('/stream-events')){await route.abort();return;}
     const response=await route.fetch({url:route.request().url().replace(':8001/',':8002/')});
     await route.fulfill({response});
   });
