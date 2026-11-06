@@ -90,7 +90,7 @@ Security scans: Windows Python **40 packages**, rebuilt Linux Python **31 packag
 
 See [Step 5C checkpoint and exact proposed scope](VS-01_STEP5C_HISTORICAL_DIAGNOSTIC_CHECKPOINT.md) and [permission/validation/operating contract](../05-operations/DHANHQ_HISTORICAL_DIAGNOSTIC.md). SQ-01/T-03, actual source qualification, owner recovery/retention/cutover and final human acceptance remain open. No commit/tag or full VS-01/R1 acceptance.
 
-## Step 5D.1 provider adapter â€” 2026-11-02
+## Step 5D.1 provider adapter — 2026-11-02
 
 The owner now authorizes a backend-only DhanHQ daily provider adapter and offline verification, supplementing the earlier CSV-first exclusions. All four Step 5B primary listings are supported through a provider-neutral in-memory acquisition interface. Existing canonical price validation, strict exact JSON/integral numeric handling, verified identities and HTTP/security policy are extracted and reused. CSV persistence, schema, financial calculations, dashboard and requirements baseline remain unchanged.
 
@@ -98,19 +98,19 @@ The adapter is implemented and offline verified: final 506 backend/PostgreSQL, 1
 
 See the [Step 5D.1 design, exact proposed changes, executed verification and remaining acceptance limitations](VS-01_STEP5D1_PROVIDER_ADAPTER_CHECKPOINT.md). This is an uncommitted implementation checkpoint, not full VS-01/R1 acceptance. SQ-01/T-03, persistent-use/retention rights, independent reconciliation, timestamp/adjustment/history qualification, owner recovery/cutover and final human acceptance remain open. Step 5D.2 requires separate approval; no release tag.
 
-## Step 5D.2 â€” one-year acquisition and canonical persistence (offline checkpoint)
+## Step 5D.2 — one-year acquisition and canonical persistence (offline checkpoint)
 
 The owner now authorizes bounded one-year acquisition/persistence implementation and offline verification, with explicit preflight review before live requests and established applicable rights before live storage. The provider collector and canonical bridge reuse the existing atomic import repository. Source contracts gain a minimal migration; the schema/CSV behavior, duplicate/recovery rules and financial mathematics are preserved. The migration was applied only to disposable test databases, not the active application database. Existing normal services retain their prior deployed source/schema pending review.
 
-The [Step 5D.2 implementation and exact live preflight](VS-01_STEP5D2_HISTORY_INGESTION_CHECKPOINT.md) describes four primary mappings, inclusive 2025-11-02 through 2026-11-02 (provider-exclusive 2026-11-03), 247 explicit scheduled sessions including the Sunday Budget session, and four bounded sequential requests. Normal integration remains false. No live request or live data persistence occurred. Public terms have not established persistent local storage/derived-use/backups/retention rights; source-use and provisional-date review remain required gates. Tâˆ’1 provider availability may omit the most recently completed requested session.
+The [Step 5D.2 implementation and exact live preflight](VS-01_STEP5D2_HISTORY_INGESTION_CHECKPOINT.md) describes four primary mappings, inclusive 2025-11-02 through 2026-11-02 (provider-exclusive 2026-11-03), 247 explicit scheduled sessions including the Sunday Budget session, and four bounded sequential requests. Normal integration remains false. No live request or live data persistence occurred. Public terms have not established persistent local storage/derived-use/backups/retention rights; source-use and provisional-date review remain required gates. T−1 provider availability may omit the most recently completed requested session.
 
 Checkpoint A is implemented and tested offline; Checkpoint B is ready for human review. C/D (authorized live execution and real-data application acceptance) remain pending. The source remains unqualified for full acceptance; timestamp/adjustment/history/reconciliation gaps and SQ-01/T-03 remain open. The working tree includes the prior uncommitted Step 5D.1 scope; no commit or tag was created, and the requirements baseline is unchanged.
 
 Final Step 5D.2 offline evidence: **547 backend/PostgreSQL, 17 frontend and four Chromium tests passed**, no final failures/errors/skips; lint/production build and Linux network-none four-ETF/247-date synthetic probe passed. Windows 40-package/Linux 31-package Python audits and full/production npm audits report zero known vulnerabilities, no Python skips. One credential-pattern candidate was a reviewed, explicitly synthetic test token; actual local credential exposure checks passed. A provider explicit-end trailing-session quality defect was corrected and regression tested. Cumulative review scope is **33 files (14 modified, 19 new)**, including carried-forward Step 5D.1 work; nothing staged/committed. See the checkpoint for intermediate failures, remaining warnings, source limitations and exact preflight/contents.
 
-## Step 5D.3 â€” real data deployed for owner UAT
+## Step 5D.3 — real data deployed for owner UAT
 
-The owner explicitly authorized the bounded live acquisition and local application deployment. Exactly four historical requests succeeded (HTTP 200), returning **246 real observations per primary ETF**, from 2025-11-03 through 2026-10-30. Requested dates remain 2025-11-02 through 2026-11-02 inclusive; only the scheduled 2026-11-02 session is missing, consistent with provider Tâˆ’1 availability. No duplicate or invalid canonical observation was found.
+The owner explicitly authorized the bounded live acquisition and local application deployment. Exactly four historical requests succeeded (HTTP 200), returning **246 real observations per primary ETF**, from 2025-11-03 through 2026-10-30. Requested dates remain 2025-11-02 through 2026-11-02 inclusive; only the scheduled 2026-11-02 session is missing, consistent with provider T−1 availability. No duplicate or invalid canonical observation was found.
 
 Applicable persistent-storage/retention permission remains inconclusive, so live observations are retained only in backend process memory. A transient read capability uses the existing canonical validator, research routes and Decimal engines without granting storage qualification or creating a parallel ingestion database. Schema 0002_provider_ingestion is now deployed locally; SQL live-price row counts remain unchanged. Normal provider enablement remains false and no scheduler/trading/account-data operation exists.
 
