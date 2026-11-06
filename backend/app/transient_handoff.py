@@ -13,7 +13,9 @@ from fastapi import Request
 from pydantic import Field, field_validator
 from .daily_values import price
 from .errors import APIError
-from .market_data import BatchProvenance, DailyObservation
+from .market_data import BatchProvenance, DailyObservation, ObservationProvenance
+from decimal import Decimal
+from .dhan_market_provider import epoch_seconds
 from .models import Observation
 from .schemas import Strict
 
@@ -47,6 +49,10 @@ class HandoffSeries(Strict):
     isin: str = Field(pattern=r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
     rows: list[CanonicalView] = Field(max_length=100000)
     batch_evidence: list[BatchProvenance] = Field(max_length=2048)
+    canonical_view_only: bool = False
+    observation_evidence: list[ObservationProvenance] = Field(
+        default_factory=list, max_length=200000
+    )
 
 
 class Handoff(Strict):
@@ -82,7 +88,7 @@ def restore_canonical_view(store, body, max_rows):
                 raise APIError(
                     422, "INVALID_HANDOFF", "Handoff identity/provisional evidence mismatch."
                 )
-            if item.rows and not item.batch_evidence:
+            if item.rows and not item.batch_evidence and not item.canonical_view_only:
                 raise APIError(422, "INVALID_HANDOFF", "Original batch evidence is required.")
             rows, days = [], set()
             for row in item.rows:
@@ -98,7 +104,8 @@ def restore_canonical_view(store, body, max_rows):
                         or row.event_precision != "SESSION_DATE"
                         or not values["low"] <= values["open"] <= values["high"]
                         or not values["low"] <= values["close"] <= values["high"]
-                        or not any(
+                        or not item.canonical_view_only
+                        and not any(
                             b.requested_start <= row.trading_date <= b.requested_end
                             for b in item.batch_evidence
                         )
@@ -125,17 +132,35 @@ def restore_canonical_view(store, body, max_rows):
                     raise APIError(
                         422, "INVALID_HANDOFF", "Canonical handoff validation failed."
                     ) from None
+            for evidence in item.observation_evidence:
+                try:
+                    if (
+                        evidence.batch.listing.isin != item.isin
+                        or len(evidence.source_timestamp) > 128
+                        or epoch_seconds(Decimal(evidence.source_timestamp)).date() not in days
+                        or evidence.batch.retrieved_at.tzinfo is None
+                    ):
+                        raise ValueError()
+                except Exception:
+                    raise APIError(
+                        422, "INVALID_HANDOFF", "Observation provenance validation failed."
+                    ) from None
             replacements[key] = {
                 **data,
                 "rows": tuple(sorted(rows, key=lambda r: r.trading_date)),
                 "handoff_evidence": tuple(asdict(b) for b in item.batch_evidence),
                 "source_epoch_evidence": "NOT_EXPOSED_BY_LEGACY_CANONICAL_VIEW",
+                "original_batch_metadata_unavailable": item.canonical_view_only,
+                "restored_observation_evidence": tuple(item.observation_evidence),
             }
             # The old read model exposes all canonical values and IDs, not raw provider epochs.
         for key, data in replacements.items():
             data["source"].profile = {
                 **data["source"].profile,
                 "handoff_limitation": "ORIGINAL_NUMERIC_EPOCH_NOT_EXPORTED",
+                "handoff_batch_metadata": "PARTIALLY_UNAVAILABLE"
+                if data.get("original_batch_metadata_unavailable")
+                else "EXPOSED_EVIDENCE_RETAINED",
             }
             data["instrument"].data_revision = 1 if data["rows"] else 0
         store._datasets = {**store._datasets, **replacements}

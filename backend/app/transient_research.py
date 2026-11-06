@@ -182,7 +182,7 @@ class TransientResearch:
             }
         return self.report()
 
-    def configure(self, listings, calendar, *, data_class="REAL_MARKET"):
+    def configure(self, listings, calendar, *, data_class="REAL_MARKET", names=None):
         """Register verified provider identities without fetching data or creating SQL rows."""
         from .dhan_history_contract import ADJUSTMENT_REF
 
@@ -229,7 +229,7 @@ class TransientResearch:
                     exchange=listing.exchange,
                     symbol=listing.symbol,
                     isin=listing.isin,
-                    name=listing.symbol,
+                    name=(names or {}).get(listing.symbol, listing.symbol),
                     metal=listing.metal,
                     currency=listing.currency,
                     active=True,

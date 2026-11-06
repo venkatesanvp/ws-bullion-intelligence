@@ -171,14 +171,17 @@ def create_app(
     import os
     from pathlib import Path
     from .dhan_config import load_dhan_configuration
-    from .dhan_provider import DhanDailyProvider
+    from .dhan_market_provider import DhanMarketProvider
+    from .provider_budget import ProviderBudget
+    from .market_session_service import MarketSessionService
+    from .transient_uat import NAMES
     from .market_data_service import MarketDataService
     from .schemas import CalendarProfile
 
     calendar = market_calendar or CalendarProfile.model_validate_json(
         Path(__file__).with_name("nse_calendar.json").read_bytes()
     )
-    provider = market_provider or DhanDailyProvider(
+    provider = market_provider or DhanMarketProvider(
         load_dhan_configuration(
             environ={
                 **os.environ,
@@ -187,15 +190,23 @@ def create_app(
         ),
         timeout_seconds=settings.market_data_timeout_seconds,
     )
+    budget = ProviderBudget(settings.market_provider_daily_budget)
     app.state.market_data = MarketDataService(
-        provider, app.state.transient_research, settings, calendar
+        provider, app.state.transient_research, settings, calendar, budget=budget
+    )
+    app.state.market_session = MarketSessionService(
+        provider, app.state.market_data, settings, budget
     )
     if settings.market_data_enabled:
         app.state.transient_research.configure(
             provider.listings(),
             calendar,
             data_class="SYNTHETIC_TEST" if market_provider else "REAL_MARKET",
+            names=NAMES,
         )
+    if market_provider and settings.market_quotes_enabled and settings.market_intraday_enabled:
+        for source in app.state.transient_research.sources():
+            source.profile = {**source.profile, "market_session_mock": True}
     app.add_middleware(BodyLimitMiddleware, max_bytes=settings.max_import_bytes + 65_536)
 
     @app.middleware("http")
@@ -729,6 +740,12 @@ def create_app(
     from .market_data_routes import register_market_data
 
     register_market_data(router, response)
+    from .market_session_routes import register_session_market
+
+    register_session_market(router, response)
+    from .market_cache_transfer import register_cache_transfer
+
+    register_cache_transfer(router, response)
     from .transient_handoff import register_handoff
 
     register_handoff(router, response)

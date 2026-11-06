@@ -105,3 +105,50 @@ export function acquisitionMessage(result: AcquisitionResult | null): string {
     + (result.warmup_complete === false ? 'Indicator warm-up history remains incomplete. ' : '')
     + 'Provider-eligible session: ' + result.latest_provider_eligible_session_candidate + '. Data is transient and will be lost after backend restart.';
 }
+
+
+export function supportsMarketSession(source?: Source): boolean {
+  return source?.source_kind === 'DHANHQ' && (source.profile.data_class === 'REAL_MARKET' || source.profile.market_session_mock === true);
+}
+export interface SessionPolicy {
+  enabled: boolean; quotes_enabled: boolean; intraday_enabled: boolean; quote_refresh_seconds: number;
+  auto_quote_refresh_seconds: number; intraday_refresh_seconds: number; session_state: string; today: string;
+}
+export interface MarketQuote {
+  instrument_id: string; name: string; listing: {symbol:string;isin:string;currency:string};
+  last_price: string | null; open?: string | null; high?: string | null; low?: string | null;
+  previous_close?: string | null; previous_close_basis?: string; provider_close?: string | null;
+  absolute_change?: string | null; percent_change?: string | null; volume?: string | null;
+  last_trade_at?: string | null; retrieved_at?: string | null; freshness: string;
+  market_session?: string; classification: string; warnings?: string[];
+}
+export interface QuoteSnapshot { quotes:MarketQuote[];error:string|null;policy:SessionPolicy;checked_at:string|null;source:string }
+export interface IntradayCandle {
+  start:string;end:string;interval:number;open:string;high:string;low:string;close:string;volume:string;
+  retrieved_at:string;classification:string;quality:string;
+}
+export interface IntradayResult {
+  instrument_id:string;listing:{symbol:string;currency:string};interval_minutes:number;
+  requested_period:{start:string;end:string};candles:IntradayCandle[];
+  indicators:Record<string,{n:number;timeframe:string;values:{candle_start:string;value:string|null;reason:string|null;break_before:string|null}[]}>;
+  provisional_session:null|{classification:string;session_date:string;open:string;high:string;low:string;close:string;volume:string;coverage:string};
+  status:string;error:string|null;requests:number;revision:number;missing_completed_candles:number;
+  calendar_unassessed:boolean;last_successful_retrieval:string|null;latest_provider_timestamp:string|null;
+  freshness:string;market_session:string;warmup_bars:number;warnings:string[];source:string;
+}
+export function marketProblem(code:string|null):string {
+  if (!code) return '';
+  const messages:Record<string,string>={TOKEN_EXPIRED:'DhanHQ token expired. Replace it locally; no renewal was attempted.',
+    AUTH_INVALID_OR_EXPIRED:'DhanHQ authentication is invalid or expired.',INVALID_CREDENTIALS:'DhanHQ credentials were rejected.',
+    MISSING_CLIENT_ID:'Dhan client ID is required for quotes. Configure it locally in the backend.',MISSING_ACCESS_TOKEN:'Configure the Dhan access token locally in the backend.',
+    ACCESS_DENIED:'DhanHQ access denied. Check Data API entitlement.',DATA_ENTITLEMENT_REQUIRED:'An active Data API entitlement is required.',
+    RATE_LIMITED:'DhanHQ rate limit reached; no automatic retry.',PROVIDER_BACKOFF:'Provider calls are paused after a failure. Cached data remains available.',
+    NETWORK_TIMEOUT:'DhanHQ timed out. Last valid data remains available.',PARTIAL_QUOTES:'Some ETF quotes are missing or invalid. Last valid quotes are retained.',
+    MARKET_QUOTES_DISABLED:'Market quotes are disabled in backend configuration.',MARKET_INTRADAY_DISABLED:'Intraday retrieval is disabled in backend configuration.'};
+  return messages[code] || 'Market data unavailable ('+code+'). Last valid data remains available.';
+}
+export function exchangeTime(value?:string|null):string {
+  if (!value) return 'Unavailable';
+  const date=new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toLocaleString('en-IN',{timeZone:'Asia/Kolkata',hour12:false})+' IST' : 'Unavailable';
+}

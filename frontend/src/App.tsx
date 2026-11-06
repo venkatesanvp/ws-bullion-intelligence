@@ -75,7 +75,7 @@ function Workbench({ token }: { token: string }) {
   }, [sourceId, source?.source_kind]);
   return <div className="workspace">
     <div className="page-heading"><div><div className="eyebrow">MARKET DATA · FOUNDATION</div><h1>Data workbench</h1><p>Gold & silver ETF history, with evidence attached.</p></div><div className="workspace-count"><strong>{instruments.length}</strong><span>configured listings</span></div></div>
-    <div className="scope-note"><span className="scope-icon">i</span>Historical data inspection. Prices are descriptive, not live quotes or executable recommendations.</div>
+    <div className="scope-note"><span className="scope-icon">i</span>Descriptive ETF research with source, timestamps and freshness.</div>
     <nav className="tabs" aria-label="Workspace views">{tabs.map(t => <button key={t} aria-current={tab === t ? 'page' : undefined} onClick={() => setTab(t)}>{t}</button>)}</nav>
     {error && <div role="alert" className="notice error">{error}<button className="text-button" onClick={() => { setError(''); refresh().catch(e => setError(describe(e))); }}>Retry connection</button></div>}
     {busy && <div role="status" className="loading">Updating workspace…</div>}

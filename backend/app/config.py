@@ -29,6 +29,17 @@ class Settings(BaseSettings):
     market_data_max_coverage_days: int = Field(default=100000, ge=1000, le=200000)
     market_data_auto_refresh_seconds: int = Field(default=0, ge=0, le=86400)
 
+    # Step 5E: independent capability switches under the standing read-only gate.
+    market_quotes_enabled: bool = False
+    market_intraday_enabled: bool = False
+    market_quote_refresh_seconds: int = Field(default=15, ge=5, le=3600)
+    market_quote_stale_seconds: int = Field(default=45, ge=15, le=3600)
+    market_intraday_refresh_seconds: int = Field(default=60, ge=15, le=3600)
+    market_intraday_partition_days: int = Field(default=7, ge=1, le=90)
+    market_session_max_requests: int = Field(default=8, ge=1, le=16)
+    market_session_max_rows: int = Field(default=100000, ge=1000, le=100000)
+    market_provider_daily_budget: int = Field(default=10000, ge=100, le=100000)
+
     @field_validator("market_data_auto_refresh_seconds")
     @classmethod
     def refresh_interval(cls, value):

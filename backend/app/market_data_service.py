@@ -36,11 +36,13 @@ class MarketDataService:
         availability=None,
         clock=None,
         monotonic=time.monotonic,
+        budget=None,
     ):
         self.provider, self.store, self.policy, self.calendar = provider, store, policy, calendar
         self.availability = availability or {}  # verified ISIN -> inception date, never guessed
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.monotonic = monotonic
+        self.budget = budget
         self._operation = Lock()  # Global single flight; replan after each waiter acquires.
         self._coverage = {}
         self._last_request = 0.0
@@ -272,7 +274,16 @@ class MarketDataService:
                     else None
                 )
                 request = DailyRequest(listing, left, right, calendar)
-                result = self.provider.retrieve_daily(request, request_approved=True)
+                try:
+
+                    def call():
+                        return self.provider.retrieve_daily(request, request_approved=True)
+
+                    result = self.budget.invoke(call) if self.budget else call()
+                except APIError as exc:
+                    from .market_data import DailyResult, ProviderFailure
+
+                    result = DailyResult("FAILED", failure=ProviderFailure(exc.code))
                 requests += result.request_attempts
                 self.attempted_requests += result.request_attempts
                 self._daily_requests += result.request_attempts

@@ -1,3 +1,6 @@
+import MarketSnapshot from './MarketSnapshot';
+import IntradayDashboard from './IntradayDashboard';
+import { supportsMarketSession } from './api';
 import { useMarketRefresh } from './useMarketRefresh';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, canResearch, ensureProviderHistory, acquisitionMessage, hasLiveRetrieval, Call, IndicatorResult, Instrument, PriceChartResult, SeriesMeta, Source } from './api';
@@ -13,7 +16,7 @@ type Calculation = { method: Method; n: number; result?: IndicatorResult; proble
 type Loaded = { chart: PriceChartResult; meta: SeriesMeta; calculations: Calculation[] };
 const sameRef = (a: PriceChartResult['series_ref'], b: IndicatorResult['series_ref']) => Number.isSafeInteger(a.revision) && Number.isSafeInteger(b.revision) && a.instrument_id === b.instrument_id && a.source_id === b.source_id && a.price_basis === b.price_basis && a.interval === b.interval && a.revision === b.revision && a.profile_digest === b.profile_digest;
 
-export default function ResearchDashboard({ api, instrument, source, basis }: { api: Call; instrument?: Instrument; source?: Source; basis: string }) {
+function DailyDashboard({ api, instrument, source, basis }: { api: Call; instrument?: Instrument; source?: Source; basis: string }) {
   const [draft, setDraft] = useState<Settings>(empty);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [problem, setProblem] = useState('');
@@ -117,5 +120,15 @@ export default function ResearchDashboard({ api, instrument, source, basis }: { 
         </section>
       </>}
     </>}
+  </div>;
+}
+
+
+export default function ResearchDashboard(props:{api:Call;instrument?:Instrument;source?:Source;basis:string}) {
+  const [view,setView]=useState<'daily'|'intraday'>('daily');
+  if(!supportsMarketSession(props.source)||!props.instrument)return <DailyDashboard {...props}/>;
+  const synthetic=props.source?.profile.data_class==='SYNTHETIC_TEST';
+  return <div><MarketSnapshot api={props.api} synthetic={synthetic}/><div className="range-bar" role="group" aria-label="Research timeframe"><button aria-pressed={view==='daily'} onClick={()=>setView('daily')}>Daily research</button><button aria-pressed={view==='intraday'} onClick={()=>setView('intraday')}>Intraday research</button></div>
+    {view==='daily'?<DailyDashboard {...props}/>:<IntradayDashboard api={props.api} instrument={props.instrument} synthetic={synthetic}/>}
   </div>;
 }
