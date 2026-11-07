@@ -279,7 +279,7 @@ class MarketDataService:
                     def call():
                         return self.provider.retrieve_daily(request, request_approved=True)
 
-                    result = self.budget.invoke(call, operation="DAILY_HISTORY") if self.budget else call()
+                    result = self.budget.invoke(call, operation="DAILY_HISTORY", trigger="MANUAL_REFRESH" if refresh else "RANGE_ENSURE") if self.budget else call()
                 except APIError as exc:
                     from .market_data import DailyResult, ProviderFailure
 

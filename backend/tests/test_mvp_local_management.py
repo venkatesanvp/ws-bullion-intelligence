@@ -1,4 +1,5 @@
 """Local lifecycle safety without changing active containers or using real data."""
+
 import importlib.util
 import json
 from pathlib import Path
@@ -17,9 +18,19 @@ def manager(monkeypatch, tmp_path):
     (tmp_path / ".env").write_text("LOCAL_APP_TOKEN=synthetic-only\n")
     monkeypatch.setattr(module, "configuration", lambda: {"LOCAL_APP_TOKEN": "synthetic-only"})
     monkeypatch.setattr(module, "verify_ports", lambda _: None)
+    monkeypatch.setattr(module, "interactive", lambda: True)
+
+    def retained(*args):
+        raise module.LocalError("Synthetic RAM guard retained payload")
+
+    monkeypatch.setattr(module, "hold_for_recovery", retained)
     module._test_preflight = module.preflight
     monkeypatch.setattr(module, "preflight", lambda _: None)
-    monkeypatch.setattr(module, "status", lambda: {n: {"state": "running", "health": "healthy"} for n in module.SERVICES})
+    monkeypatch.setattr(
+        module,
+        "status",
+        lambda: {n: {"state": "running", "health": "healthy"} for n in module.SERVICES},
+    )
     return module
 
 
@@ -33,16 +44,27 @@ def test_stop_never_removes_or_resets_volumes(manager, monkeypatch, capsys):
 
 def test_api_restart_handoff_stays_in_memory_and_never_retrieves_provider(manager, monkeypatch):
     calls, requests = [], []
-    full = {"daily": {"series": [{"isin": "SYNTHETIC", "rows": [{"close": "123.0000000001"}]}]}, "quotes": [], "candles": []}
+    full = {
+        "daily": {"series": [{"isin": "SYNTHETIC", "rows": [{"close": "123.0000000001"}]}]},
+        "quotes": [],
+        "candles": [],
+    }
     empty = {"daily": {"series": [{"isin": "SYNTHETIC", "rows": []}]}, "quotes": [], "candles": []}
     state = [full, empty, full]
+
     def api(values, path, payload=None):
         requests.append((path, payload is not None))
         return {} if payload is not None else state.pop(0)
+
     monkeypatch.setattr(manager, "api", api)
     monkeypatch.setattr(manager, "compose", lambda *a: calls.append(a))
     assert manager.main(["restart", "--service", "api"]) == 0
-    assert requests == [("/market-data/cache-transfer", False), ("/market-data/cache-transfer", False), ("/market-data/cache-transfer", True), ("/market-data/cache-transfer", False)]
+    assert requests == [
+        ("/market-data/cache-transfer", False),
+        ("/market-data/cache-transfer", False),
+        ("/market-data/cache-transfer", True),
+        ("/market-data/cache-transfer", False),
+    ]
     assert all("ensure" not in p for p, _ in requests)
     assert list(manager.ROOT.iterdir()) == [manager.ROOT / ".env"]
     assert all("db" not in call and "-v" not in call for call in calls)
@@ -59,7 +81,11 @@ def test_restart_refuses_to_overwrite_concurrent_cache(manager, monkeypatch, cap
 
 
 def test_command_failure_never_exposes_raw_output(manager, monkeypatch):
-    monkeypatch.setattr(manager.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess([], 1, b"sensitive", b"credential"))
+    monkeypatch.setattr(
+        manager.subprocess,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess([], 1, b"sensitive", b"credential"),
+    )
     with pytest.raises(manager.LocalError, match="Sensitive output withheld"):
         manager.run(["synthetic"])
 
@@ -70,7 +96,21 @@ def test_status_reports_only_service_state_and_health(manager, monkeypatch):
     spec = importlib.util.spec_from_file_location("mvp_status_test", source)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    monkeypatch.setattr(module, "compose", lambda *a: (json.dumps({"Service": "api", "State": "running", "Health": "healthy", "Command": "not-exposed"}) + "\n").encode())
+    monkeypatch.setattr(
+        module,
+        "compose",
+        lambda *a: (
+            json.dumps(
+                {
+                    "Service": "api",
+                    "State": "running",
+                    "Health": "healthy",
+                    "Command": "not-exposed",
+                }
+            )
+            + "\n"
+        ).encode(),
+    )
     result = module.status()
     assert result["api"] == {"state": "running", "health": "healthy"}
     assert "not-exposed" not in str(result)
@@ -83,13 +123,17 @@ def test_recovery_normalizes_only_exact_equivalent_provider_kind_enum_deparses()
     spec.loader.exec_module(module)
     original = "CHECK (((source_kind)::text = ANY ((ARRAY['USER_CSV'::character varying, 'DHANHQ'::character varying])::text[])))"
     restored = "CHECK (((source_kind)::text = ANY (ARRAY[('USER_CSV'::character varying)::text, ('DHANHQ'::character varying)::text])))"
-    assert module.normalized_constraint("data_sources", "ck_source_kind", original) == module.normalized_constraint("data_sources", "ck_source_kind", restored)
+    assert module.normalized_constraint(
+        "data_sources", "ck_source_kind", original
+    ) == module.normalized_constraint("data_sources", "ck_source_kind", restored)
     changed = restored.replace("'DHANHQ'", "'UNAPPROVED'")
     assert module.normalized_constraint("data_sources", "ck_source_kind", changed)[2] == changed
     assert module.normalized_constraint("other_table", "ck_source_kind", restored)[2] == restored
 
 
-def test_populated_handoff_uses_origin_and_preserves_daily_quotes_intraday_and_budget(manager, monkeypatch):
+def test_populated_handoff_uses_origin_and_preserves_daily_quotes_intraday_and_budget(
+    manager, monkeypatch
+):
     import io
     from contextlib import nullcontext
     from fastapi.testclient import TestClient
@@ -97,9 +141,15 @@ def test_populated_handoff_uses_origin_and_preserves_daily_quotes_intraday_and_b
     from .test_market_session import setup
     from .provider_fixtures import collected
     from .conftest import TOKEN
+
     old, service, _, _ = setup()
     plan, result, _ = collected()
-    old.state.transient_research.install(result, plan, names={x.symbol: "SYNTHETIC TEST ONLY" for x in service.provider.listings()}, data_class="SYNTHETIC_TEST")
+    old.state.transient_research.install(
+        result,
+        plan,
+        names={x.symbol: "SYNTHETIC TEST ONLY" for x in service.provider.listings()},
+        data_class="SYNTHETIC_TEST",
+    )
     service.get_quotes()
     service.intraday(service.daily.store.listings()[0].id, 5, "previous")
     # Explicitly different daily vs cumulative counts; never infer one from the other.
@@ -109,15 +159,25 @@ def test_populated_handoff_uses_origin_and_preserves_daily_quotes_intraday_and_b
     assert manager._test_preflight(exported)["daily_observations"] > 0
     fresh, target, _, _ = setup()
     with TestClient(fresh) as client:
+
         def urlopen(request, timeout):
             assert timeout == 20 and request.get_header("Origin") == "http://127.0.0.1:5173"
             assert request.full_url == "http://127.0.0.1:8000/api/v1/market-data/cache-transfer"
-            response = client.post("/api/v1/market-data/cache-transfer", content=request.data, headers=dict(request.header_items()))
+            response = client.post(
+                "/api/v1/market-data/cache-transfer",
+                content=request.data,
+                headers=dict(request.header_items()),
+            )
             assert response.status_code == 200
             return nullcontext(io.BytesIO(response.content))
+
         monkeypatch.setattr(manager.urllib.request, "urlopen", urlopen)
         restored = manager.api({"LOCAL_APP_TOKEN": TOKEN}, "/market-data/cache-transfer", exported)
-    assert restored["daily_observations"] > 0 and restored["quotes"] == 4 and restored["intraday_candles"] == 75
+    assert (
+        restored["daily_observations"] > 0
+        and restored["quotes"] == 4
+        and restored["intraday_candles"] == 75
+    )
     assert target.budget.attempts == 2 and target.quote_attempts == 15
     assert target.budget.day == service.budget.day
     assert target.quotes == service.quotes and target.candles == service.candles
@@ -125,8 +185,10 @@ def test_populated_handoff_uses_origin_and_preserves_daily_quotes_intraday_and_b
 
 def test_failed_preflight_stops_before_any_container_mutation(manager, monkeypatch):
     monkeypatch.setattr(manager, "api", lambda *a: {})
+
     def bad(_):
         raise manager.LocalError("Cache preflight failed")
+
     monkeypatch.setattr(manager, "preflight", bad)
     calls = []
     monkeypatch.setattr(manager, "compose", lambda *a: calls.append(a))
@@ -137,8 +199,76 @@ def test_failed_preflight_stops_before_any_container_mutation(manager, monkeypat
 def test_previous_budget_day_is_explicit_and_not_reported_as_today():
     from datetime import timedelta
     from .test_market_session import setup
+
     _, service, _, _ = setup()
     service.budget.attempts = 24
     service.budget.day = service.budget.clock().date() - timedelta(days=1)
     assert service.policy()["provider_requests_today"] == 0
     assert service.policy()["provider_budget_day"] == service.budget.day
+
+
+def test_noninteractive_restart_refused_before_container_mutation(manager, monkeypatch):
+    monkeypatch.setattr(manager, "interactive", lambda: False)
+    monkeypatch.setattr(
+        manager, "api", lambda *a: {"daily": {"series": []}, "quotes": [], "candles": []}
+    )
+    calls = []
+    monkeypatch.setattr(manager, "compose", lambda *a: calls.append(a))
+    assert manager.main(["restart", "--service", "api"]) == 1
+    assert not calls
+
+
+def test_ram_guard_retries_only_on_explicit_operator_action(monkeypatch):
+    path = Path(__file__).resolve().parents[2] / "scripts/local/manage.py"
+    spec = importlib.util.spec_from_file_location("mvp_guard_test", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    payload = {"synthetic": "not-written"}
+    actions = iter(["unknown", "retry", "retry"])
+    monkeypatch.setattr("builtins.input", lambda: next(actions))
+    calls = []
+
+    def restore(values, transfer):
+        assert transfer is payload
+        calls.append(transfer)
+        if len(calls) == 1:
+            raise module.LocalError("Synthetic first local restore failure")
+
+    monkeypatch.setattr(module, "restore_transfer", restore)
+    module.hold_for_recovery({}, payload)
+    assert len(calls) == 2
+
+
+def test_complete_handoff_fingerprint_includes_budget_and_provenance(manager):
+    first = {
+        "daily": {
+            "series": [
+                {
+                    "isin": "SYNTHETIC",
+                    "instrument_id": "old",
+                    "source_id": "old",
+                    "rows": [],
+                    "batch_evidence": ["source-vintage"],
+                }
+            ]
+        },
+        "quotes": [],
+        "candles": [],
+        "budget_attempts": 8,
+    }
+    from copy import deepcopy
+
+    remapped = deepcopy(first)
+    remapped["daily"]["series"][0]["instrument_id"] = "new"
+    assert manager.fingerprint(manager.stable_transfer(first)) == manager.fingerprint(
+        manager.stable_transfer(remapped)
+    )
+    remapped["budget_attempts"] = 9
+    assert manager.fingerprint(manager.stable_transfer(first)) != manager.fingerprint(
+        manager.stable_transfer(remapped)
+    )
+    remapped = deepcopy(first)
+    remapped["daily"]["series"][0]["batch_evidence"] = ["changed-vintage"]
+    assert manager.fingerprint(manager.stable_transfer(first)) != manager.fingerprint(
+        manager.stable_transfer(remapped)
+    )

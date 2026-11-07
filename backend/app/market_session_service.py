@@ -131,7 +131,7 @@ class MarketSessionService:
                 error = "MARKET_QUOTES_DISABLED"
             elif due and not cached_only and not (stream_healthy and not refresh):
                 try:
-                    result = self.budget.invoke(self.provider.retrieve_quotes, operation="QUOTE")
+                    result = self.budget.invoke(self.provider.retrieve_quotes, operation="QUOTE", trigger="MANUAL_REFRESH" if refresh else "QUOTE_POLL")
                     self.quote_attempts += result.request_attempts
                     self._receipt("QUOTE", result)
                     self.quote_checked = self.clock()
@@ -337,7 +337,7 @@ class MarketSessionService:
                     try:
                         result = self.budget.invoke(
                             lambda: self.provider.retrieve_intraday(listing, interval, left, right),
-                            operation="INTRADAY",
+                            operation="INTRADAY", trigger="MANUAL_REFRESH" if refresh else "INTRADAY_RANGE",
                         )
                     except APIError as exc:
                         error = exc.code

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse, Response
 
+from .provider_budget import provider_correlation
 from .config import SCHEMA_REVISION, Settings
 from .errors import APIError
 from .ingestion import batch_data, ingest
@@ -228,6 +229,7 @@ def create_app(
     async def access_boundary(request: Request, call_next):
         started = time.monotonic()
         request.state.request_id = str(uuid4())
+        correlation_token = provider_correlation.set(request.state.request_id)
         try:
             host = urlsplit("http://" + request.headers.get("host", "")).hostname
         except ValueError:
@@ -295,6 +297,7 @@ def create_app(
                 }
             )
         )
+        provider_correlation.reset(correlation_token)
         return result
 
     app.add_middleware(

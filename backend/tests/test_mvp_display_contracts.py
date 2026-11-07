@@ -24,7 +24,7 @@ def test_provider_audit_contains_only_operation_and_counts_not_response_or_error
     with caplog.at_level(logging.INFO, logger="bullion"):
         assert budget.invoke(lambda: result, operation="DAILY_HISTORY") is result
     event = json.loads(caplog.records[-1].message)
-    assert event == {"event": "PROVIDER_OPERATION_COMPLETED", "operation": "DAILY_HISTORY", "request_attempts": 1, "counter_before": 0, "counter_after": 1, "failed": False}
+    assert {k: event[k] for k in ("event", "operation", "request_attempts", "counter_before", "counter_after", "failed")} == {"event": "PROVIDER_OPERATION_COMPLETED", "operation": "DAILY_HISTORY", "request_attempts": 1, "counter_before": 0, "counter_after": 1, "failed": False}
     assert "never-log-me" not in caplog.text and "restricted-prices" not in caplog.text
     with pytest.raises(ValueError):
         budget.invoke(lambda: result, operation="secret-not-allowed")

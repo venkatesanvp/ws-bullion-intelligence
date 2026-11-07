@@ -4,8 +4,10 @@ Only the empty replacement process can restore. Provider credentials are not par
 any payload. Original absent evidence is marked absent, never reconstructed.
 """
 
+from copy import copy, deepcopy
+from threading import RLock
 from dataclasses import asdict
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from fastapi import Request
 from pydantic import Field, TypeAdapter
@@ -135,6 +137,7 @@ def restore_cache(app, body):
                 or row.retrieved_at.tzinfo is None
                 or epoch_seconds(Decimal(row.source_timestamp)) != row.start
                 or not row.start < row.end
+                or row.end - row.start > timedelta(minutes=row.interval)
                 or not row.low <= row.open <= row.high
                 or not row.low <= row.close <= row.high
                 or row.classification not in {"INTRADAY_COMPLETED", "INTRADAY_PROVISIONAL"}
@@ -154,6 +157,15 @@ def restore_cache(app, body):
     with service._quote_lock, service._intraday_lock, store._lock:
         if service.quotes or service.candles or service.quote_attempts or service.intraday_attempts:
             raise APIError(409, "HANDOFF_CLOSED", "Restore before any quote/intraday acquisition.")
+        # Stage the whole handoff in a private store. No live publication before
+        # daily validation AND intraday coverage calculation have both succeeded.
+        shadow = copy(store)
+        shadow._lock = RLock()
+        shadow._datasets = {
+            key: {**data, "instrument": deepcopy(data["instrument"]), "source": deepcopy(data["source"])}
+            for key, data in store._datasets.items()
+        }
+        body = body.model_copy(deep=True)
         # Remap ephemeral catalog IDs by verified ISIN; keep observation/batch IDs.
         for series in body.daily.series:
             target = next((i for i in store.listings() if i.isin == series.isin), None)
@@ -162,23 +174,30 @@ def restore_cache(app, body):
             source = store.sources()[0]
             series.instrument_id = target.id
             series.source_id = source.id
-        restored = restore_canonical_view(store, body.daily, service.settings.market_data_max_rows)
-        service.quotes = {q.listing.isin: q for q in quotes}
-        service.quote_checked = max((q.retrieved_at for q in quotes), default=None)
-        service.quote_generation = 1 if quotes else 0
-        service.candles = {}
+        restored = restore_canonical_view(shadow, body.daily, service.settings.market_data_max_rows)
+        staged_candles, staged_revisions, staged_coverage = {}, {}, {}
         for row in candles:
             key = (row.listing.isin, row.interval)
-            service.candles.setdefault(key, {})[row.start] = row
-            service.revisions[key] = 1
-        for key, rows in service.candles.items():
+            staged_candles.setdefault(key, {})[row.start] = row
+            staged_revisions[key] = 1
+        for key, rows in staged_candles.items():
             for day in {r.start.date() for r in rows.values()}:
                 expected = service.expected_starts(day, key[1], service.clock())
                 complete = expected is not None and set(expected) <= {
                     r.start for r in rows.values()
                 }
                 stamp = max(r.retrieved_at for r in rows.values() if r.start.date() == day)
-                service.coverage[(key, day)] = (stamp, "COMPLETE" if complete else "PARTIAL")
+                staged_coverage[(key, day)] = (stamp, "COMPLETE" if complete else "PARTIAL")
+        # Publish only fully prepared state. A disconnected caller can safely
+        # inspect/export and compare; replay remains fail-closed (409), never merges.
+        store._datasets = shadow._datasets
+        store._handoff_sealed = True
+        service.quotes = {q.listing.isin: q for q in quotes}
+        service.quote_checked = max((q.retrieved_at for q in quotes), default=None)
+        service.quote_generation = 1 if quotes else 0
+        service.candles = staged_candles
+        service.revisions = staged_revisions
+        service.coverage = staged_coverage
         service.quote_attempts = body.quote_attempts
         service.intraday_attempts = body.intraday_attempts
         app.state.market_data.attempted_requests = body.daily_attempts

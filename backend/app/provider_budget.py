@@ -6,7 +6,12 @@ from threading import Lock
 import time
 import json
 import logging
+from contextvars import ContextVar
+from uuid import uuid4
+
 from .errors import APIError
+
+provider_correlation = ContextVar("provider_correlation", default=None)
 
 
 class ProviderBudget:
@@ -20,9 +25,12 @@ class ProviderBudget:
         self.attempts = 0
         self.blocked_until = None
 
-    def invoke(self, action, *, operation="UNSPECIFIED"):
+    def invoke(self, action, *, operation="UNSPECIFIED", trigger="DIRECT_SERVICE"):
         if operation not in {"UNSPECIFIED", "DAILY_HISTORY", "QUOTE", "INTRADAY"}:
             raise ValueError("Unknown provider operation")
+        if trigger not in {"DIRECT_SERVICE", "MANUAL_REFRESH", "RANGE_ENSURE", "QUOTE_POLL", "INTRADAY_RANGE"}:
+            raise ValueError("Unknown provider trigger")
+        correlation = provider_correlation.get() or str(uuid4())
         if not self.lock.acquire(timeout=30):
             raise APIError(
                 503, "PROVIDER_BUSY", "Market-data provider is busy; cached data remains available."
@@ -43,17 +51,23 @@ class ProviderBudget:
             if remaining > 0:
                 self.pause(remaining)
             before = self.attempts
+            audit = {"operation": operation, "trigger": trigger,
+                     "correlation_id": correlation, "timestamp": now.isoformat(), "retry_count": 0}
+            logging.getLogger("bullion").info(json.dumps({
+                "event": "PROVIDER_OPERATION_STARTED", **audit, "counter_before": before,
+            }))
             try:
                 result = action()
             except Exception:
                 logging.getLogger("bullion").warning(json.dumps({
-                    "event": "PROVIDER_OPERATION_ABORTED", "operation": operation,
+                    "event": "PROVIDER_OPERATION_ABORTED", **audit, "outcome": "UNEXPECTED_EXCEPTION_ATTEMPT_COUNT_UNKNOWN",
                     "counter_before": before, "counter_after": self.attempts,
                 }))
                 raise
             self.attempts += result.request_attempts
             logging.getLogger("bullion").info(json.dumps({
-                "event": "PROVIDER_OPERATION_COMPLETED", "operation": operation,
+                "event": "PROVIDER_OPERATION_COMPLETED", **audit,
+                "outcome": "FAILED" if result.failure else "SUCCEEDED",
                 "request_attempts": result.request_attempts,
                 "counter_before": before, "counter_after": self.attempts,
                 "failed": result.failure is not None,
