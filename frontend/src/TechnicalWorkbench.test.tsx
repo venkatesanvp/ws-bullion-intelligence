@@ -11,15 +11,15 @@ const candles=Array.from({length:45},(_,i)=>({time:new Date(Date.UTC(2026,0,1+i)
 const bundle=(fields:Record<string,string|null>)=>({algorithm_version:'synthetic-test',values:candles.map(c=>({time:c.time,reason:null,...fields}))});
 const result:TechnicalResult={instrument_id:instrument.id,symbol:instrument.symbol,timeframe:'1d',parameters:defaultTechnical,indicators:{ATR:bundle({value:'2.333333333333'}),MACD:bundle({macd:'0.666666666667',signal:'0.583333333333',histogram:'0.083333333333'}),DONCHIAN:bundle({upper:'13.000000000000',lower:'9.000000000000',middle:'11.000000000000'}),SMA:bundle({value:'10'}),EMA:bundle({value:'10'}),RSI:bundle({value:'50'})},candles,status:'AVAILABLE',input_fingerprint:'synthetic-fingerprint',computed_at:'2026-11-06T12:00:00Z',warmup_bars:30,source:'SYNTHETIC TEST',source_qualification:source.qualification,price_basis:'RAW_CLOSE',freshness:'UNASSESSED',warnings:['NO_FORECAST_OR_TRADING_SIGNAL']};
 
-it('displays exact backend technical values, preserves fifteen-row paging and offers an opt-in renderer',async()=>{
+it('displays exact backend technical values, preserves fifteen-row paging and defaults to the financial renderer and offers Plotly fallback',async()=>{
  const api=vi.fn(async()=>({data:result})) as unknown as Call;
  render(<TechnicalWorkbench api={api} instrument={instrument} source={source} basis="RAW_CLOSE"/>);
  const region=await screen.findByRole('region',{name:'Exact technical values'});
  expect(within(region).getAllByRole('row')).toHaveLength(16);
  expect(within(region).getAllByText('2.333333333333')).toHaveLength(15);
- expect(await screen.findByRole('img',{name:'SYNTH technical price / 1d'})).toBeInTheDocument();
+ expect(await screen.findByRole('img',{name:'Parity 1d'})).toBeInTheDocument();
  fireEvent.click(screen.getByRole('button',{name:'Show more technical rows'}));expect(within(region).getAllByRole('row')).toHaveLength(31);
- fireEvent.change(screen.getByLabelText('Technical chart renderer'),{target:{value:'lightweight'}});await screen.findByRole('img',{name:'Parity 1d'});
+ fireEvent.change(screen.getByLabelText('Chart engine'),{target:{value:'plotly'}});await screen.findByRole('img',{name:'SYNTH technical price / 1d'});
 });
 
 it('sends explicit reviewed parameters and rejects invalid MACD ordering without another call',async()=>{

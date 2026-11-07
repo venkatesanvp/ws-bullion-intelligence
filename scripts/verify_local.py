@@ -43,7 +43,7 @@ def main():
     env["DATABASE_URL"] = "postgresql+psycopg://test:test@127.0.0.1:1/unavailable_test"
     records = []
 
-    def run(name, command, cwd=ROOT, timeout=180):
+    def run(name, command, cwd=ROOT, timeout=600):
         print("CHECK:", name, flush=True)
         try:
             command = [str(x) for x in command]

@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager
 from threading import Lock
 import time
+import json
+import logging
 from .errors import APIError
 
 
@@ -18,7 +20,9 @@ class ProviderBudget:
         self.attempts = 0
         self.blocked_until = None
 
-    def invoke(self, action):
+    def invoke(self, action, *, operation="UNSPECIFIED"):
+        if operation not in {"UNSPECIFIED", "DAILY_HISTORY", "QUOTE", "INTRADAY"}:
+            raise ValueError("Unknown provider operation")
         if not self.lock.acquire(timeout=30):
             raise APIError(
                 503, "PROVIDER_BUSY", "Market-data provider is busy; cached data remains available."
@@ -38,8 +42,22 @@ class ProviderBudget:
             remaining = 1 - (self.monotonic() - self.last)
             if remaining > 0:
                 self.pause(remaining)
-            result = action()
+            before = self.attempts
+            try:
+                result = action()
+            except Exception:
+                logging.getLogger("bullion").warning(json.dumps({
+                    "event": "PROVIDER_OPERATION_ABORTED", "operation": operation,
+                    "counter_before": before, "counter_after": self.attempts,
+                }))
+                raise
             self.attempts += result.request_attempts
+            logging.getLogger("bullion").info(json.dumps({
+                "event": "PROVIDER_OPERATION_COMPLETED", "operation": operation,
+                "request_attempts": result.request_attempts,
+                "counter_before": before, "counter_after": self.attempts,
+                "failed": result.failure is not None,
+            }))
             self.last = self.monotonic()
             if result.failure and result.failure.code in {
                 "TOKEN_EXPIRED",

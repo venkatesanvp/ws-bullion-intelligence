@@ -6,7 +6,7 @@ export interface ForecastContext {
  instrument:{instrument_id:string;symbol:string;currency:string;isin:string|null};source_id:string;source:string;source_qualification:string;data_class:string;quality:string;canonical_basis:string;model_basis:string;
  missing_sessions:number;available_observations:number;eligible_observations:number;excluded_observations:Record<string,number>;available_first_date:string|null;available_last_date:string|null;
  first_date:string|null;last_date:string|null;last_close:string|null;last_first_seen_at:string|null;last_source_event_at:string|null;freshness:string;limitations:string[];revision:string;
- calendar_version:string;calendar_coverage_end:string;history:{time:string;close:string}[];horizons:{horizon:number;target_session:string|null;status:string;reason:string|null}[];
+ calendar_version:string;calendar_coverage_end:string;history:{time:string;close:string;open?:string|null;high?:string|null;low?:string|null;volume?:string|null}[];horizons:{horizon:number;target_session:string|null;status:string;reason:string|null}[];
  instruments:{instrument_id:string;symbol:string}[];refresh_session:string|null;manual_refresh_enabled:boolean;
 }
 export interface ForecastOutput {

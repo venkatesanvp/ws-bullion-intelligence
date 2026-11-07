@@ -1,5 +1,7 @@
 FROM docker.io/library/python:3.13-slim@sha256:2d44738ebf4ce5f63b9d9ea871e9c7cfdc0426f7b0c97cac915fd88ded1d86bb
 WORKDIR /app
+# Runtime uses uv and the locked project venv; inherited global pip is unnecessary.
+RUN python -m pip uninstall --yes pip
 COPY --from=ghcr.io/astral-sh/uv:0.11.29@sha256:eb2843a1e56fd9e30c7276ce1a52cba86e64c7b385f5e3279a0e08e02dd058fc /uv /uvx /usr/local/bin/
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev

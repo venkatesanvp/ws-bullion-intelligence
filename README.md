@@ -6,6 +6,23 @@ Local Gold/Silver ETF research with source/provenance inspection, exact Decimal 
 
 Research Dashboard includes Daily, Intraday, Technical Analytics and Forecasting Research. B01/B02 provide price endpoints; B03 provides volatility only. Historical modes remain separate: strict point in time, explicit acknowledged conditional replay and labeled synthetic verification. Scorecards compare B01/B02 only on matched eligible origins, disclose overlapping/disjoint windows and do not estimate independent evidence or declare a winning model. Regime analysis is optional and uses fixed cutoff-context rules. Results/registries are bounded process memory, lost on restart/expiry.
 
+## Local MVP release candidate
+
+Lightweight Charts 5.2.1 is the default daily/intraday/technical/forecast price renderer, with native panes, exact-value alternatives and a Plotly fallback. Forecast research includes cached technical inspection and endpoint-only B01/B02 overlays; B03 remains volatility-only. Optional live context is collapsed in technical/forecast views and is not polled while unmounted.
+
+[Implementation and exact source scope](docs/04-planning/MVP_IMPLEMENTATION_CHECKPOINT.md) | [Local management/recovery](docs/05-operations/MVP_LOCAL_DEPLOYMENT.md) | [SIT](docs/04-planning/MVP_SIT_TEST_PLAN.md) | [Owner UAT](docs/04-planning/MVP_UAT_PLAN.md) | [Release readiness](docs/04-planning/MVP_RELEASE_READINESS.md)
+
+The first MVP deployment lost the prior RAM cache when its restore POST lacked Origin. The defect is fixed with populated authentication-boundary tests and a full offline restore preflight. Owner-authorized fresh reacquisition now supplies 248 daily observations and 75 five-minute candles per ETF; original provenance was not recovered. See REC-02 in the checkpoint. No release or acceptance is declared.
+
+```powershell
+.\scripts\local\bullion.ps1 setup
+.\scripts\local\bullion.ps1 start
+.\scripts\local\bullion.ps1 status
+.\scripts\local\bullion.ps1 test
+```
+
+Final MVP verification: 915 backend/PostgreSQL tests, 62 frontend tests and 11 browser workflows passed; production frontend smoke and synthetic container/backup recovery passed. Project dependency/credential checks pass, but image scans retain high findings and four PostgreSQL/gosu critical reports (one Windows-only; three awaiting reachability/patched-image review). **Security release clearance is blocked.** See [security assessment](docs/04-planning/MVP_SECURITY_ASSESSMENT.md) and release readiness.
+
 ## Local startup
 
 Prerequisites: Docker Desktop with its Linux engine running (WSL 2 on this Windows workstation). Development/tests also use Python 3.13, uv, Node 22 and npm.
@@ -45,7 +62,7 @@ No qualified real ETF dataset is bundled. SQ-01/T-03 and full acceptance remain 
 - SMA/EMA use explicit integer n>=1; RSI n>=2; technical upper bound 10,000. EMA seeds with first-n SMA. Wilder RSI seeds from n price changes; gain-only=100, loss-only=0, both zero unavailable. Local Decimal context 34/HALF_EVEN, derived strings 12 places. No floating-point authoritative financial arithmetic.
 - Indicators use the full eligible prefix before trimming a visible range. Known calendar gaps/declared breaks reset seeds; unknown calendars remain unassessed. No invented prices, dates, fills or publication times.
 - Comparisons use same-currency compatible-basis actual date intersections in an explicit period. Adjusted series require the same recorded adjustment-definition reference; mixed real/synthetic series are unavailable. No dividends or corporate-action adjustments are inferred.
-- Plotly basic is bundled locally and lazy loaded. Coordinates are approximate display values; exact server strings remain in hover/table alternatives. Known breaks/nulls are not connected. Large/unsafe BIGINT volume is unavailable in the browser rather than rounded.
+- Lightweight Charts is the default financial renderer; Plotly basic remains bundled locally and lazy loaded as a fallback. Coordinates are approximate display values; exact server strings remain in hover/table alternatives. Known breaks/nulls are not connected. Large/unsafe BIGINT volume is unavailable in the browser rather than rounded.
 - Historical CSV ingestion time is not proof of point-in-time market availability. Replay remains unverified. Raw/adjusted/unknown bases stay distinct; quality/freshness remain unknown without explicit evidence/profiles.
 
 Import retries use an explicit UUID `Idempotency-Key`. Keep and reuse the identical file/metadata/key after an uncertain response; changed input under that key conflicts. Use **Resolve an interrupted request** or `GET /api/v1/import-batches/by-key/{key}` before retrying. No automatic background job or correction is inferred.
@@ -91,7 +108,7 @@ The provider-attempt counter changed from23to24 between guarded phases during Pa
 - `backend/app/`: strict input/access/CSV/persistence/quality plus pure Decimal arithmetic and read-only snapshot-consistent research orchestration.
 - `backend/tests/`: independent arithmetic references, parsing/access, actual PostgreSQL transactions/concurrency, provenance, snapshots and research API cases.
 - `frontend/src/`: existing workflows plus local charts, research controls, exact tables, comparison/quality disclosures and component regressions.
-- `frontend/e2e/`: nine workflows covering workspace, provider/session/streaming, daily/intraday/technical charts and forecasting/performance against isolated UI/API/PostgreSQL.
+- `frontend/e2e/`: eleven workflows covering workspace, provider/session/streaming, daily/intraday/technical charts and forecasting/performance against isolated UI/API/PostgreSQL.
 - `scripts/`: secret initialization, regression driver and isolated recovery verifier. No new service or migration is needed for research.
 
 All paths below use `/api/v1`:

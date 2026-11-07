@@ -1,3 +1,5 @@
+import FinancialChart from './FinancialChart';
+import {dailyChart} from './chartAdapters';
 import TechnicalWorkbench from './TechnicalWorkbench';
 import ForecastingResearch from './ForecastingResearch';
 import DataViewport, {DATA_PAGE_SIZE} from './DataViewport';
@@ -6,11 +8,9 @@ import MarketSnapshot from './MarketSnapshot';
 import IntradayDashboard from './IntradayDashboard';
 import { supportsMarketSession } from './api';
 import { useMarketRefresh } from './useMarketRefresh';
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, canResearch, ensureProviderHistory, acquisitionMessage, hasLiveRetrieval, Call, IndicatorResult, Instrument, PriceChartResult, SeriesMeta, Source } from './api';
 import { ChartBoundary, DataClass, ResearchField as Field, ResearchQuality, researchProblem } from './ResearchShared';
-import type { ResearchTrace } from './ResearchChart';
-const Chart = lazy(() => import('./ResearchChart'));
 type Method = 'SMA' | 'EMA' | 'RSI';
 type Settings = { start: string; end: string; asOf: string; SMA: boolean; EMA: boolean; RSI: boolean; smaN: string; emaN: string; rsiN: string };
 const empty: Settings = { start: '', end: '', asOf: '', SMA: false, EMA: false, RSI: false, smaN: '', emaN: '', rsiN: '' };
@@ -83,9 +83,6 @@ function DailyDashboard({ api, instrument, source, basis }: { api: Call; instrum
   const calculations = loaded?.calculations.filter(c => draft[c.method] && Number(period(draft, c.method)) === c.n) || [];
   const price = loaded?.chart;
   const valueMaps = new Map(calculations.map(c => [c.method, new Map(c.result?.values.map(v => [v.trading_date, v]) || [])]));
-  const traces: ResearchTrace[] = price ? [{ name: instrument.symbol + ' close', dates: price.points.map(p => p.trading_date), values: price.points.map(p => p.close), breaks: price.points.map(p => !!p.break_before), color: '#9e772d' },
-    ...calculations.filter(c => c.method !== 'RSI' && c.result).map(c => ({ name: c.method + ' (' + c.n + ')', dates: c.result!.values.map(v => v.trading_date), values: c.result!.values.map(v => v.value), breaks: c.result!.values.map(v => !!v.break_before), color: c.method === 'SMA' ? '#326f9d' : '#267b67' }))] : [];
-  const rsi = calculations.find(c => c.method === 'RSI' && c.result)?.result;
   return <div className="research-dashboard">
     <section className="card"><div className="eyebrow">DESCRIPTIVE RESEARCH</div><h2>{instrument.symbol} research dashboard</h2>
       <DataClass synthetic={source.profile.data_class === 'SYNTHETIC_TEST'}/>
@@ -109,14 +106,13 @@ function DailyDashboard({ api, instrument, source, basis }: { api: Call; instrum
       <ResearchQuality meta={loaded.meta}/>
       {!price?.points.length ? <div className="empty">No observations are available for this research range.</div> : <>
         <section className="card"><h3>Historical price and overlays</h3><p>{price.points.length} observations | {loaded.meta.coverage.range_first_date} through {loaded.meta.coverage.range_last_date}</p>
-          <ChartBoundary><Suspense fallback={<p role="status">Loading local chart module.</p>}><Chart title={instrument.symbol + ' price chart'} traces={traces} identity={price.input_fingerprint}/></Suspense></ChartBoundary>
+          <ChartBoundary><FinancialChart result={dailyChart(price,instrument.symbol,calculations)} title={instrument.symbol+' price chart'}/></ChartBoundary>
         </section>
         {calculations.map(c => <section className="card calculation-summary" key={c.method}><h3>{c.method} / n={c.n}</h3>
           {c.problem && <p role="alert" className="notice warning">{c.problem}</p>}
           {c.result && <><p>{c.result.status}{c.result.unavailable_reason ? ': ' + c.result.unavailable_reason : ''} | {c.result.window_unit}</p>
             <details><summary>{c.method} calculation provenance</summary><p>Algorithm: {c.result.algorithm_version}. Seed dates (first 20): {c.result.seed_dates.slice(0,20).join(', ') || 'Not seeded'}</p><p>Input fingerprint: <code>{c.result.input_fingerprint}</code></p><p>Computed at: {c.result.computed_at}. Derived strings have 12 decimal places; this is serialization precision.</p></details></>}
         </section>)}
-        {rsi?.values.some(v => v.value !== null) && <section className="card"><h3>Wilder RSI - separate scale</h3><ChartBoundary><Suspense fallback={<p>Loading local chart module.</p>}><Chart title={instrument.symbol + ' Wilder RSI'} rsi identity={rsi.input_fingerprint} traces={[{ name: 'Wilder RSI (' + rsi.n + ')', dates: rsi.values.map(v => v.trading_date), values: rsi.values.map(v => v.value), breaks: rsi.values.map(v => !!v.break_before), color: '#7958a8' }]}/></Suspense></ChartBoundary></section>}
         <section className="card"><h3>Exact research values</h3><p>{Math.min(shownRows,price.points.length)} of {price.points.length} rows shown. Warm-up and unavailable reasons are retained.</p>
           <DataViewport className="table-wrap" label="Daily research values"><table><caption>Exact prices and server-calculated indicator values</caption><thead><tr><th>Date</th><th>Close / {instrument.currency}</th>{calculations.map(c => <th key={c.method}>{c.method} ({c.n})</th>)}<th>Source row / discontinuity</th></tr></thead>
             <tbody>{price.points.slice(0,shownRows).map(point => <tr key={point.observation_id}><td>{point.trading_date}</td><td>{point.close}</td>{calculations.map(c => { const value = valueMaps.get(c.method)?.get(point.trading_date); return <td key={c.method}>{value?.value ?? ('Unavailable: ' + (value?.reason || c.result?.unavailable_reason || c.problem || 'Not calculated'))}</td>; })}<td>{point.batch_id.slice(0,8)} / {point.row_number}{point.break_before ? ' | ' + point.break_before : ''}</td></tr>)}</tbody></table></DataViewport>
@@ -131,10 +127,12 @@ function DailyDashboard({ api, instrument, source, basis }: { api: Call; instrum
 export default function ResearchDashboard(props:{api:Call;instrument?:Instrument;source?:Source;basis:string}) {
   const [view,setView]=useState<'daily'|'intraday'|'technical'|'forecast'>('daily');
   const [revision,setRevision]=useState(0);
+  const [marketOpen,setMarketOpen]=useState(false);
   if(!props.instrument||!props.source||!canResearch(props.source))return <DailyDashboard {...props}/>;
   const session=supportsMarketSession(props.source);
   const synthetic=props.source?.profile.data_class==='SYNTHETIC_TEST';
-  return <div>{session&&<><MarketSnapshot api={props.api} synthetic={synthetic} onReconciliation={()=>setRevision(r=>r+1)}/><ReconciliationPanel api={props.api} instrument={props.instrument} onChange={()=>setRevision(r=>r+1)}/></>}<div className="range-bar" role="group" aria-label="Research timeframe"><button aria-pressed={view==='daily'} onClick={()=>setView('daily')}>Daily research</button>{session&&<button aria-pressed={view==='intraday'} onClick={()=>setView('intraday')}>Intraday research</button>}<button aria-pressed={view==='technical'} onClick={()=>setView('technical')}>Technical analytics</button>{session&&<button aria-pressed={view==='forecast'} onClick={()=>setView('forecast')}>Forecasting Research</button>}</div>
+  const marketContext=<><MarketSnapshot api={props.api} synthetic={synthetic} onReconciliation={()=>setRevision(r=>r+1)}/><ReconciliationPanel api={props.api} instrument={props.instrument} onChange={()=>setRevision(r=>r+1)}/></>;
+  return <div>{session&&((view==='daily'||view==='intraday')?marketContext:<details className="card" open={marketOpen} onToggle={e=>setMarketOpen(e.currentTarget.open)}><summary>Optional live quotes and reconciliation</summary>{marketOpen&&marketContext}</details>)}<div className="range-bar" role="group" aria-label="Research timeframe"><button aria-pressed={view==='daily'} onClick={()=>setView('daily')}>Daily research</button>{session&&<button aria-pressed={view==='intraday'} onClick={()=>setView('intraday')}>Intraday research</button>}<button aria-pressed={view==='technical'} onClick={()=>setView('technical')}>Technical analytics</button>{session&&<button aria-pressed={view==='forecast'} onClick={()=>setView('forecast')}>Forecasting Research</button>}</div>
     {view==='forecast'?<ForecastingResearch key={revision} api={props.api} instrument={props.instrument} source={props.source} basis={props.basis}/>:view==='technical'?<TechnicalWorkbench key={revision} api={props.api} instrument={props.instrument} source={props.source} basis={props.basis}/>:view==='daily'?<DailyDashboard key={revision} {...props}/>:<IntradayDashboard key={revision} api={props.api} instrument={props.instrument} synthetic={synthetic}/>}
   </div>;
 }

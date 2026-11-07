@@ -1,7 +1,8 @@
 import DataViewport, {DATA_PAGE_SIZE} from './DataViewport';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Call, exchangeTime, Instrument, IntradayResult, marketProblem, SessionPolicy } from './api';
-import IntradayChart from './IntradayChart';
+import FinancialChart from './FinancialChart';
+import {intradayChart} from './chartAdapters';
 
 type Draft={interval:number;preset:string;start:string;end:string;SMA:boolean;EMA:boolean;RSI:boolean;smaN:string;emaN:string;rsiN:string};
 const initial:Draft={interval:5,preset:'current',start:'',end:'',SMA:true,EMA:false,RSI:false,smaN:'20',emaN:'37',rsiN:'14'};
@@ -51,7 +52,7 @@ export default function IntradayDashboard({api,instrument,synthetic=false}:{api:
     {busy&&<p role="status">Checking intraday coverage and retrieving missing candles.</p>}{problem&&<p role="alert" className="notice warning">{problem}</p>}
     {loaded&&<><p role="status">{loaded.status} | {loaded.candles.length} observed {loaded.interval_minutes}-minute candles | {loaded.requested_period.start} through {loaded.requested_period.end} | {loaded.freshness} | {loaded.market_session}</p>
       <p>Latest candle: {exchangeTime(loaded.latest_provider_timestamp)}. Last successful retrieval: {exchangeTime(loaded.last_successful_retrieval)}. Missing completed candles: {loaded.missing_completed_candles}. {loaded.calendar_unassessed?'Calendar coverage unassessed.':''} Earlier completed warm-up bars: {loaded.warmup_bars}.</p>
-      {!loaded.candles.length?<p className="empty">No intraday observations are currently available. This does not establish a holiday or guarantee provider availability.</p>:<IntradayChart result={loaded}/>}
+      {!loaded.candles.length?<p className="empty">No intraday observations are currently available. This does not establish a holiday or guarantee provider availability.</p>:<FinancialChart result={intradayChart(loaded)} title={instrument.symbol+' intraday candlestick chart'}/>}
       {loaded.provisional_session&&<section className="notice warning"><h3>{loaded.provisional_session.classification}</h3><p>{loaded.provisional_session.session_date}: O {loaded.provisional_session.open} | H {loaded.provisional_session.high} | L {loaded.provisional_session.low} | latest observed C {loaded.provisional_session.close} | volume {loaded.provisional_session.volume}</p><p>{loaded.provisional_session.coverage}. This is not the official finalized daily candle.</p></section>}
       <details><summary>Intraday data quality and interpretation</summary><p>{loaded.warnings.join('; ')}</p><p>Provider: {loaded.source}. Revision: {loaded.revision}. Adjustment basis unqualified; no total-return or replay claim. Data lives in bounded backend memory and is lost on restart.</p></details>
       <DataViewport className="table-wrap" label="Intraday observations"><table><caption>Exact {loaded.interval_minutes}-minute OHLCV and indicator values</caption><thead><tr><th>Candle start / end (IST)</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th>{Object.entries(loaded.indicators).map(([m,v])=><th key={m}>{m} {v.n} / {v.timeframe}</th>)}<th>Classification</th></tr></thead><tbody>{loaded.candles.slice(0,shown).map(row=><tr key={row.start}><td>{exchangeTime(row.start)}<small>{exchangeTime(row.end)}</small></td><td>{row.open}</td><td>{row.high}</td><td>{row.low}</td><td>{row.close}</td><td>{row.volume}</td>{Object.entries(loaded.indicators).map(([m,v])=>{const value=v.values.find(x=>x.candle_start===row.start);return <td key={m}>{value?.value??('Unavailable: '+(value?.reason||'PROVISIONAL_OR_WARMUP'))}</td>;})}<td>{row.classification}</td></tr>)}</tbody></table></DataViewport>

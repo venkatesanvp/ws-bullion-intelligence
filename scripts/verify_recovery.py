@@ -49,8 +49,9 @@ def fingerprint(value):
 def normalized_constraint(table, name, definition):
     # PostgreSQL 18 dump/reparse distributes a varchar[] -> text[] cast over
     # each enum literal. Accept only the two exact equivalent deparses of
-    # the five existing checks; all other definitions remain byte-compared.
+    # the six reviewed checks; all other definitions remain byte-compared.
     enums = {
+        ("data_sources", "ck_source_kind"): ("source_kind", ["USER_CSV", "DHANHQ"]),
         ("data_sources", "ck_qualification"): (
             "qualification",
             ["UNVERIFIED", "QUALIFIED_FOR_RESEARCH", "RESTRICTED"],

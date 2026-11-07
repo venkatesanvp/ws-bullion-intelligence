@@ -32,3 +32,6 @@
 .forecast-research{grid-template-columns:minmax(0,1fr);overflow-wrap:anywhere}.forecast-research>.card{min-width:0}.forecast-research input,.forecast-research select{max-width:100%;min-width:0}
 
 .forecast-performance{min-width:0;overflow-wrap:anywhere}.forecast-performance>details{min-width:0}.forecast-performance h4{margin-block:1.5rem .5rem}
+
+/* Local MVP: shared financial chart and sequential research context. */
+.financial-chart{min-width:0;max-width:100%}.financial-chart>label{display:block;max-width:22rem;margin-block:1rem}.chart-indicators{display:flex;flex-wrap:wrap;gap:.3rem}.lightweight-canvas{height:800px;max-width:100%;overflow:hidden}.forecast-research nav{display:flex;gap:1rem;flex-wrap:wrap;margin-block-end:1rem}.forecast-research nav a{text-decoration:underline}.forecast-endpoint{padding:.5rem;border-left:3px solid #9d7228;overflow-wrap:anywhere}.lightweight-research[data-theme=dark] .lightweight-canvas{background:#18241f}@media(max-width:760px){.chart-indicators{display:block}.financial-chart .range-bar{display:flex;flex-wrap:wrap}.financial-chart .range-bar button{width:auto;flex:1}.financial-chart{min-width:0}}

@@ -5,6 +5,7 @@ any payload. Original absent evidence is marked absent, never reconstructed.
 """
 
 from dataclasses import asdict
+from datetime import date
 from decimal import Decimal
 from fastapi import Request
 from pydantic import Field, TypeAdapter
@@ -24,6 +25,8 @@ class SessionTransfer(Strict):
     quote_attempts: int = Field(default=0, ge=0, le=100000)
     intraday_attempts: int = Field(default=0, ge=0, le=100000)
     daily_attempts: int = Field(default=0, ge=0, le=100000)
+    budget_day: date | None = None
+    budget_attempts: int | None = Field(default=None, ge=0, le=100000, strict=True)
 
 
 def export_cache(app):
@@ -79,6 +82,8 @@ def export_cache(app):
                 "quote_attempts": service.quote_attempts,
                 "intraday_attempts": service.intraday_attempts,
                 "daily_attempts": app.state.market_data.attempted_requests,
+                "budget_day": service.budget.day,
+                "budget_attempts": service.budget.attempts,
             }
         )
 
@@ -177,8 +182,13 @@ def restore_cache(app, body):
         service.quote_attempts = body.quote_attempts
         service.intraday_attempts = body.intraday_attempts
         app.state.market_data.attempted_requests = body.daily_attempts
-        service.budget.attempts = body.quote_attempts + body.intraday_attempts + body.daily_attempts
-        service.budget.day = service.clock().date()
+        # Daily budget is separate from lifetime per-capability counters.
+        # Legacy payloads remain conservative, but do not provide exact daily evidence.
+        service.budget.attempts = (
+            body.budget_attempts if body.budget_attempts is not None
+            else body.quote_attempts + body.intraday_attempts + body.daily_attempts
+        )
+        service.budget.day = body.budget_day if body.budget_attempts is not None else service.clock().date()
         return {
             "daily_observations": restored["observations"],
             "quotes": len(quotes),

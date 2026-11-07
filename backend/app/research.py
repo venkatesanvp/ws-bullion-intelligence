@@ -22,10 +22,13 @@ from .serialization import digest
 Basis = Literal["RAW_CLOSE", "PROVIDER_ADJUSTED", "UNKNOWN"]
 
 
-def bounded_points(db, instrument_id, source_id, basis, start=None, end=None):
+def bounded_rows(db, instrument_id, source_id, basis, start=None, end=None):
     memory = db.info.get("transient_research")
     if memory is not None and memory.has_series(instrument_id, source_id):
-        return memory.points(instrument_id, source_id, basis, start, end)
+        rows = memory.rows(instrument_id, source_id, basis, start, end)
+        if len(rows) > MAX_POINTS:
+            raise APIError(422, "ANALYTICS_RANGE_LIMIT", "Complete chart input exceeds 10000 observations.")
+        return rows
     statement = select(Observation).where(
         Observation.instrument_id == instrument_id,
         Observation.source_id == source_id,
@@ -47,6 +50,10 @@ def bounded_points(db, instrument_id, source_id, basis, start=None, end=None):
             "ANALYTICS_RANGE_LIMIT",
             "The complete research input exceeds 10,000 observations. Use history inspection or a supported range; no prefix was truncated.",
         )
+    return rows
+
+
+def as_points(rows):
     return [
         Point(
             r.trading_date,
@@ -59,6 +66,10 @@ def bounded_points(db, instrument_id, source_id, basis, start=None, end=None):
         )
         for r in rows
     ]
+
+
+def bounded_points(db, instrument_id, source_id, basis, start=None, end=None):
+    return as_points(bounded_rows(db, instrument_id, source_id, basis, start, end))
 
 
 def breaks_for(points, profile):
@@ -123,7 +134,9 @@ def register_research(router, get_db, respond):
     ):
         validate_range(start, end)
         instrument, source = series(db, instrument_id, source_id)
-        points = bounded_points(db, instrument_id, source_id, basis, start, end)
+        rows = bounded_rows(db, instrument_id, source_id, basis, start, end)
+        points = as_points(rows)
+        ohlcv = {str(r.id): r for r in rows}
         meta = series_meta(db, instrument, source, basis, start, end, assessment_as_of)
         breaks = breaks_for(points, source.profile)
         data = {
@@ -145,6 +158,10 @@ def register_research(router, get_db, respond):
                 {
                     "trading_date": p.day,
                     "close": p.close,
+                    "open": ohlcv[p.observation_id].open,
+                    "high": ohlcv[p.observation_id].high,
+                    "low": ohlcv[p.observation_id].low,
+                    "volume": str(p.volume) if p.volume is not None else None,
                     "observation_id": p.observation_id,
                     "batch_id": p.batch_id,
                     "row_number": p.row_number,

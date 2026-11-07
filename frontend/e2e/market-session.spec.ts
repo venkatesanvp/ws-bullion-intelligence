@@ -21,7 +21,7 @@ test('synthetic quotes, automatic refresh, intraday candles and timeframe indica
   const initial=await count();await expect.poll(count,{timeout:22000}).toBeGreaterThan(initial);
   await page.getByRole('button',{name:'Refresh quotes',exact:true}).click();await expect.poll(count).toBeGreaterThan(initial+1);
   await page.getByRole('button',{name:'Intraday research',exact:true}).click();
-  await expect(page.getByRole('img',{name:'TATAGOLD intraday candlestick chart',exact:true})).toBeVisible();
+  await expect(page.getByRole('img',{name:'TATAGOLD Lightweight 5m candlestick chart',exact:true})).toBeVisible();
   await expect(page.getByRole('columnheader',{name:'SMA 20 / 5m',exact:true})).toBeVisible();
   await expect(page.getByText('PROVISIONAL - INTRADAY AGGREGATED', {exact:true})).toBeVisible();
   await page.getByRole('combobox',{name:'Intraday interval',exact:true}).selectOption('25');
@@ -29,5 +29,6 @@ test('synthetic quotes, automatic refresh, intraday candles and timeframe indica
   await page.getByRole('button',{name:'Apply intraday range',exact:true}).click();
   await expect(page.getByRole('columnheader',{name:'SMA 20 / 25m',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Daily research',exact:true}).click();
+  await page.getByLabel('Chart engine',{exact:true}).selectOption('plotly');
   await expect(page.getByRole('img',{name:'TATAGOLD price chart',exact:true}).locator('svg.main-svg').first()).toBeVisible();
 });

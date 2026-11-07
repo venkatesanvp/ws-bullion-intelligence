@@ -38,6 +38,16 @@ class Adapted:
     unknown_target_times: frozenset
 
 
+def chart_history(observations):
+    """Exact display-only metadata from the same eligible model observations."""
+    return [
+        {"time": str(p.session_date), "open": format(p.open, "f"),
+         "high": format(p.high, "f"), "low": format(p.low, "f"),
+         "close": format(p.close, "f"), "volume": str(p.volume)}
+        for p in observations
+    ]
+
+
 def calendar_view(profile, override=None):
     if override is not None:
         return override, frozenset()
@@ -276,9 +286,7 @@ def adapt(instrument, source, rows, *, listings, now, calendar_override=None):
         <= 1
         else "STALE_FINAL_DAILY_INPUT",
         "limitations": list(LIMITATIONS) if real else ["SYNTHETIC_TEST_ONLY"],
-        "history": [
-            {"time": str(p.session_date), "close": format(p.close, "f")} for p in selected[-120:]
-        ],
+        "history": chart_history(selected[-120:]),
         "retention": "PROCESS_MEMORY_ONLY_RESTART_LOSES_TRACKING",
     }
     return Adapted(data, metadata, tuple(refs), unknown)

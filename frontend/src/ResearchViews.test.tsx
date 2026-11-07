@@ -1,3 +1,4 @@
+import {useEffect} from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -120,3 +121,6 @@ it('displays owner-authorized transient research without granting storage qualif
   expect(transient.qualification).not.toBe('QUALIFIED_FOR_RESEARCH');
   expect(transient.permitted_uses.storage).toBe(false);
 });
+
+// Canvas is verified with the native chart API tests and real Chromium. jsdom has no canvas.
+vi.mock('./LightweightResearchChart',()=>({default:({onUnavailable}:{onUnavailable?:(message:string)=>void})=>{useEffect(()=>{onUnavailable?.('Canvas renderer unavailable in jsdom; fallback exercised.');},[]);return null;}}));

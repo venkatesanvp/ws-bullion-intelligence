@@ -42,15 +42,17 @@ test('synthetic chart, overlays, RSI, common-date comparison and unavailable bas
   await page.getByRole('button',{name:'Apply research settings'}).click();
   await expect(page.getByText('66.666666666667',{exact:true})).toBeVisible();
   const priceChart=page.getByRole('img',{name:sample.gold.symbol+' price chart',exact:true});
+  await page.getByLabel('Chart engine',{exact:true}).selectOption('plotly');
   await expect(priceChart.locator('svg.main-svg').first()).toBeVisible();
   await expect(priceChart.locator('.scatterlayer .trace')).toHaveCount(3);
-  await expect(page.getByRole('img',{name:sample.gold.symbol+' Wilder RSI',exact:true}).locator('svg.main-svg').first()).toBeVisible();
+  await expect(page.getByRole('img',{name:'RSI / 1d',exact:true}).locator('svg.main-svg').first()).toBeVisible();
   await page.getByRole('checkbox',{name:'Show SMA',exact:true}).uncheck();
   await expect(page.getByRole('columnheader',{name:'SMA (2)',exact:true})).toHaveCount(0);
   await page.getByLabel('Research from',{exact:true}).fill('2026-01-03');await page.getByLabel('Research through',{exact:true}).fill('2026-01-04');
   await page.getByRole('button',{name:'Apply research settings'}).click();
   const table=page.getByRole('table',{name:'Exact prices and server-calculated indicator values'});
   await expect(table.getByRole('row').filter({hasText:'2026-01-03'}).locator('td').nth(2)).toHaveText('13.000000000000');
+  await page.getByLabel('Chart engine',{exact:true}).selectOption('plotly');
   await expect(priceChart.locator('svg.main-svg').first()).toBeVisible();
   await page.screenshot({path:'../artifacts/step4-research-desktop.png',fullPage:true});
   await page.setViewportSize({width:390,height:844});
@@ -59,6 +61,7 @@ test('synthetic chart, overlays, RSI, common-date comparison and unavailable bas
   await page.screenshot({path:'../artifacts/step4-research-mobile.png',fullPage:true});
   await page.setViewportSize({width:1280,height:900});
   await page.getByLabel('Research metal filter').selectOption('SILVER');await page.getByLabel('ETF listing').selectOption(sample.silver.id);
+  await page.getByLabel('Chart engine',{exact:true}).selectOption('plotly');
   await expect(page.getByRole('img',{name:sample.silver.symbol+' price chart',exact:true}).locator('svg.main-svg').first()).toBeVisible();
   await expect(page.getByRole('img',{name:sample.gold.symbol+' price chart',exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'ETF comparisons',exact:true}).click();

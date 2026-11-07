@@ -46,7 +46,8 @@ class MarketSessionService:
             "intervals": INTERVALS,
             "quote_requests": self.quote_attempts,
             "intraday_requests": self.intraday_attempts,
-            "provider_requests_today": self.budget.attempts,
+            "provider_requests_today": self.budget.attempts if self.budget.day == self.budget.clock().date() else 0,
+            "provider_budget_day": self.budget.day,
             "retention": "BOUNDED_PROCESS_MEMORY_ONLY",
             "timestamp_policy": getattr(self.provider, "timestamp_policy", "UNASSESSED"),
         }
@@ -130,7 +131,7 @@ class MarketSessionService:
                 error = "MARKET_QUOTES_DISABLED"
             elif due and not cached_only and not (stream_healthy and not refresh):
                 try:
-                    result = self.budget.invoke(self.provider.retrieve_quotes)
+                    result = self.budget.invoke(self.provider.retrieve_quotes, operation="QUOTE")
                     self.quote_attempts += result.request_attempts
                     self._receipt("QUOTE", result)
                     self.quote_checked = self.clock()
@@ -335,7 +336,8 @@ class MarketSessionService:
                         break
                     try:
                         result = self.budget.invoke(
-                            lambda: self.provider.retrieve_intraday(listing, interval, left, right)
+                            lambda: self.provider.retrieve_intraday(listing, interval, left, right),
+                            operation="INTRADAY",
                         )
                     except APIError as exc:
                         error = exc.code

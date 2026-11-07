@@ -10,8 +10,7 @@ test('technical daily and intraday values, native chart panes/crosshair/zoom/pan
  await page.getByRole('combobox',{name:'ETF listing',exact:true}).selectOption(item.instrument_id);await page.getByRole('combobox',{name:'Data source',exact:true}).selectOption(session.source_id);await page.getByRole('combobox',{name:'Price basis',exact:true}).selectOption('PROVIDER_ADJUSTED');
  await page.getByRole('button',{name:'Research dashboard',exact:true}).click();await page.getByRole('button',{name:'Technical analytics',exact:true}).click();
  await expect(page.getByRole('region',{name:'Exact technical values',exact:true}).locator('tbody tr')).toHaveCount(15);
- await expect(page.getByRole('img',{name:'TATAGOLD technical price / 1d',exact:true})).toBeVisible();
- await page.getByRole('combobox',{name:'Technical chart renderer',exact:true}).selectOption('lightweight');
+ await expect(page.getByRole('img',{name:'TATAGOLD Lightweight 1d candlestick chart',exact:true})).toBeVisible();
  const daily=page.getByRole('img',{name:'TATAGOLD Lightweight 1d candlestick chart',exact:true});await expect(daily.locator('canvas').first()).toBeVisible();
  expect(await daily.locator('canvas').count()).toBeGreaterThanOrEqual(5);await expect(page.getByRole('link',{name:'TradingView',exact:true})).toBeVisible();
  await daily.scrollIntoViewIfNeeded();const box=await daily.boundingBox();if(!box)throw Error('Chart bounds unavailable');
@@ -26,5 +25,5 @@ test('technical daily and intraday values, native chart panes/crosshair/zoom/pan
  expect(result.indicators.ATR.values[3].value).not.toBeNull();expect(result.indicators.DONCHIAN.values[3].upper).not.toBeNull();
  await page.getByRole('combobox',{name:'Technical timeframe',exact:true}).selectOption('5');await page.getByRole('button',{name:'Apply technical settings',exact:true}).click();
  const intraday=page.getByRole('img',{name:'TATAGOLD Lightweight 5m candlestick chart',exact:true});await expect(intraday.locator('canvas').first()).toBeVisible();await expect(page.getByRole('region',{name:'Technical analytics',exact:true})).toContainText('5m');
- await page.getByRole('button',{name:'Daily research',exact:true}).click();await expect(page.getByRole('img',{name:'TATAGOLD price chart',exact:true}).locator('svg.main-svg').first()).toBeVisible();
+ await page.getByRole('button',{name:'Daily research',exact:true}).click();await page.getByLabel('Chart engine',{exact:true}).selectOption('plotly');await expect(page.getByRole('img',{name:'TATAGOLD price chart',exact:true}).locator('svg.main-svg').first()).toBeVisible();
 });

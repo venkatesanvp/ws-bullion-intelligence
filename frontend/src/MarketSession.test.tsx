@@ -1,3 +1,4 @@
+import {useEffect} from 'react';
 import {act,fireEvent,render,screen,waitFor} from '@testing-library/react';
 import {afterEach,describe,expect,it,vi} from 'vitest';
 import MarketSnapshot from './MarketSnapshot';
@@ -48,3 +49,8 @@ describe('P0 market research with synthetic HTTP responses',()=>{
     await waitFor(()=>expect(bodies.at(-1)).toMatchObject({interval:15,preset:'previous',indicators:{SMA:20}}));
   });
 });
+
+// Canvas is verified with the native chart API tests and real Chromium. jsdom has no canvas.
+vi.mock('./LightweightResearchChart',()=>({default:({onUnavailable}:{onUnavailable?:(message:string)=>void})=>{useEffect(()=>{onUnavailable?.('Canvas renderer unavailable in jsdom; fallback exercised.');},[]);return null;}}));
+
+vi.mock('./ResearchChart',()=>({default:({title}:{title:string})=><div role="img" aria-label={title}/>}));

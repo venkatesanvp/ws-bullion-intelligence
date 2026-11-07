@@ -18,7 +18,8 @@ test('synthetic binary feed reaches authenticated browser SSE and reconciliation
  await page.getByLabel('Reconciliation session').fill('2026-11-05');
  await page.getByRole('button',{name:'Reconcile selected session',exact:true}).click();
  await expect(page.getByRole('region',{name:'Daily reconciliation'})).toContainText('HISTORICAL_FINAL');
- await expect(page.getByRole('img',{name:'TATAGOLD price chart',exact:true}).locator('svg.main-svg').first()).toBeVisible();
+ // Reconciliation remounts the research snapshot, whose approved default is native.
+ await expect(page.getByRole('img',{name:'TATAGOLD Lightweight 1d candlestick chart',exact:true}).locator('canvas').first()).toBeVisible();
  await page.getByRole('button',{name:'Disconnect feed',exact:true}).click();
  await expect(page.getByText(/Read-only stream: DISCONNECTED/)).toBeVisible();
  await expect(page.getByText(/Controlled quote polling is the fallback/)).toBeVisible();

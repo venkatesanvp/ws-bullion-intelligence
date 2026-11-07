@@ -22,7 +22,7 @@ from .forecast_evaluation import (
     ModelRun,
     evaluate,
 )
-from .forecast_market_adapter import adapt, IST
+from .forecast_market_adapter import adapt, IST, chart_history
 from .forecast_qualification import qualification
 from .forecast_replay import POLICY, MODE, ASSUMPTIONS
 from .forecast_performance import analyze
@@ -510,11 +510,11 @@ class ForecastResearchService:
             for r in original["results"]
         ):
             changed = True
-        original["context"]["history"] = [
-            {"time": str(p.session_date), "close": format(p.close, "f")}
+        original["context"]["history"] = chart_history([
+            p
             for p in view.dataset.observations
             if not changed and p.session_date in {d for d, _, _ in refs[-120:]}
-        ]
+        ])
         tracking = []
         for r in original["results"]:
             check()

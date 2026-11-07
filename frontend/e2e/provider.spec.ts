@@ -29,8 +29,9 @@ test('synthetic one-year provider import feeds charts indicators and both metal 
     await page.getByLabel(method + ' lookback', { exact: true }).fill(method === 'SMA' ? '200' : method === 'EMA' ? '37' : '14');
   }
   await page.getByRole('button', { name: 'Apply research settings' }).click();
+  await page.getByLabel('Chart engine',{exact:true}).selectOption('plotly');
   await expect(page.getByRole('img', { name: 'TATAGOLD price chart', exact: true }).locator('svg.main-svg').first()).toBeVisible();
-  await expect(page.getByRole('img', { name: 'TATAGOLD Wilder RSI', exact: true }).locator('svg.main-svg').first()).toBeVisible();
+  await expect(page.getByRole('img', { name: 'RSI / 1d', exact: true }).locator('svg.main-svg').first()).toBeVisible();
   await expect(page.getByText(/TIMESTAMP CONTRACT UNVERIFIED/).first()).toBeVisible();
   await expect(page.getByRole('table', { name: 'Exact prices and server-calculated indicator values' })).toBeVisible();
   await page.getByRole('button', { name: 'ETF comparisons', exact: true }).click();

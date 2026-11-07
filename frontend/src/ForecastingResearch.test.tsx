@@ -1,3 +1,4 @@
+import {useEffect} from 'react';
 import {fireEvent,render,screen,within,waitFor} from '@testing-library/react';
 import {it,expect,vi} from 'vitest';
 import ForecastingResearch from './ForecastingResearch';
@@ -110,4 +111,17 @@ it('allows historical one-session evaluation independently of a completed curren
 
 it('sends optional cutoff-regime and bounded rolling error controls only with evaluation',async()=>{
  const calls=apiFor();render(<ForecastingResearch api={calls as unknown as Call} instrument={instrument} source={source} basis="PROVIDER_ADJUSTED"/>);await ready();fireEvent.click(screen.getByRole('checkbox',{name:'Include cutoff-based market-regime research'}));fireEvent.change(screen.getByRole('spinbutton',{name:'Rolling error window scored origins'}),{target:{value:'3'}});fireEvent.click(screen.getByRole('button',{name:'Run Historical Evaluation'}));await screen.findByText('Historical evaluation evidence');const body=JSON.parse(String(calls.mock.calls.find(([p])=>p.endsWith('/evaluate'))?.[1]?.body));expect(body.regime_analysis).toBe(true);expect(body.rolling_error_window).toBe(3);
+});
+
+// Canvas is verified with the native chart API tests and real Chromium. jsdom has no canvas.
+vi.mock('./LightweightResearchChart',()=>({default:({onUnavailable}:{onUnavailable?:(message:string)=>void})=>{useEffect(()=>{onUnavailable?.('Canvas renderer unavailable in jsdom; fallback exercised.');},[]);return null;}}));
+
+it('inspects technical context through the read-only cached route without acquisition or forecast execution',async()=>{
+ const technical={instrument_id:instrument.id,symbol:instrument.symbol,timeframe:'1d',parameters:{sma_n:20,ema_n:37,rsi_n:14,atr_n:14,macd_fast:12,macd_slow:26,macd_signal:9,donchian_n:20},indicators:{},candles:ctx.history.map(p=>({...p,open:null,high:null,low:null,volume:null,classification:'SYNTHETIC_TEST'})),status:'AVAILABLE',input_fingerprint:'synthetic',computed_at:run.computed_at,warmup_bars:0,source:source.label,source_qualification:source.qualification,price_basis:'PROVIDER_ADJUSTED',freshness:'SYNTHETIC',warnings:[]};
+ const calls=apiFor(path=>path==='/research/technical'?{data:technical}:undefined);
+ render(<ForecastingResearch api={calls as unknown as Call} instrument={instrument} source={source} basis="PROVIDER_ADJUSTED"/>);await ready();
+ fireEvent.click(screen.getByRole('button',{name:'Inspect cached technical indicators'}));
+ await waitFor(()=>expect(calls.mock.calls.filter(([path])=>path==='/research/technical')).toHaveLength(1));
+ expect(calls.mock.calls.some(([path])=>path==='/market-data/ensure'||path.endsWith('/run'))).toBe(false);
+ const body=JSON.parse(String(calls.mock.calls.find(([path])=>path==='/research/technical')?.[1]?.body));expect(body.instrument_id).toBe(instrument.id);expect(body.end).toBe(ctx.last_date);
 });
