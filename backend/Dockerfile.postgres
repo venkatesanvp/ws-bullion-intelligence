@@ -1,0 +1,13 @@
+# PostgreSQL 18 / Debian 13 retained. Official entrypoint supports non-root startup.
+FROM docker.io/library/postgres:18-trixie@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42 AS runtime
+# gosu is used only by the root entrypoint branch. This image starts as postgres.
+RUN rm /usr/local/bin/gosu
+FROM scratch
+COPY --from=runtime / /
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/postgresql/18/bin LANG=en_US.utf8 PG_MAJOR=18 PG_VERSION=18.6-1.pgdg13+2 PGDATA=/var/lib/postgresql/18/docker
+USER postgres
+EXPOSE 5432
+VOLUME /var/lib/postgresql
+STOPSIGNAL SIGINT
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["postgres"]
