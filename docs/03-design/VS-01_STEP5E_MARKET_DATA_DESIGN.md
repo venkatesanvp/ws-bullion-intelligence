@@ -1,0 +1,60 @@
+# Step 5E market-session implementation design
+
+Authority: owner's Step 5E implementation instruction, 2026-11-06. Trace: D-14/D-16; REQ-02 market-data/quality/timeframe requirements; REQ-03-007 approved deterministic indicators; REQ-05 local security; DC-02/03/04/05/07; SQ-01/T-03 remain source-qualification gates. Requirements baseline and Decision Register are unchanged.
+
+## P0 implemented architecture
+
+The existing verified Dhan instrument catalog and provider-independent Listing remain authoritative. DhanMarketProvider extends the existing daily adapter with a batched quote operation and bounded intraday operation; it imports no account/trading SDK. MarketSessionProvider, MarketQuote, IntradayCandle and SessionResult are provider-neutral contracts. The existing canonical price guard/strict Decimal JSON decoder and pure indicator engine are reused. No second database/ingestion architecture.
+
+ProviderBudget serializes all normal daily/quote/intraday calls at <=1/second, bounds daily calls, and pauses after authentication/entitlement/rate/service/network failures. There are no automatic HTTP retries, redirects or proxy credential forwarding. Separate quote and intraday locks single-flight requests; operation queues are bounded. Quotes batch configured instruments, cache last valid values and report event/retrieval ages separately. Historical/current intraday ranges have different freshness/negative-cache policies, bounded partition/call/row/coverage limits, and cancellation between chunks.
+
+REST quote headers require both access-token and client-id. App name/key/secret are not sent. The ambiguous ohlc.close is retained as provider_close; previous close is derived from the documented last_price minus net_change relationship, corroborated against provider_close when equal. Differences are flagged instead of silently relabelling provider_close. Price changes use the explicit 34-digit Decimal context and existing twelve-place derived serialization.
+
+Observed quote strings use DD/MM/YYYY HH:MM:SS; the explicit IST interpretation matched contemporaneous backend time for all four instruments. Intraday uses an explicit Unix-seconds/IST policy, supported by the official SDK converter and actual boundary checks. These are corroborated policies, not a claim of a complete universal timestamp contract. A last-trade timestamp is not quote-generation time.
+
+Intraday API midnight-to-midnight request bounds avoid the opening-bar omission observed with fromDate=09:15. Actual Tata Gold 1-minute aggregation matched all 75 five-minute OHLCV observations; start-aligned windows matched, end-aligned windows did not consistently match. End timestamps are inferred from interval and clipped to the reviewed regular session close, not provider-published fields. A 60-second settlement guard keeps forming/recent bars provisional. Special sessions outside the reviewed template need additional qualification.
+
+## Classification and analytics
+
+Live quotes never enter the historical daily store. Intraday keys include ISIN, interval and aware start timestamp; rows preserve exact source epoch text/row, provider, retrieval and request-range evidence. Per-candle volume is documented and the 1m/5m sum was corroborated; aggregation is conditional on this volume-semantics flag. Missing candles are not imputed. Missing expected bars/session boundaries restart the unchanged indicator engine.
+
+Daily and intraday indicators use separate inputs and explicit timeframe labels. Intraday calculations use completed bars and a bounded deterministic warm-up prefix. Current-session aggregates are always PROVISIONAL - INTRADAY AGGREGATED, even when all regular-session bars have completed, until official daily publication is separately considered. No quote snapshot is an official daily candle; no total-return, signal, investment-performance or replay qualification is inferred.
+
+## Security, retention and deployment
+
+Capability gates default false in committed configuration and are enabled only locally under standing authority. Credential values are unchanged and remain API-only. RAM caches cap quotes by the verified catalog, intraday rows at 100000, coverage metadata at its configured cap, and metadata receipts at 256. Overflow preserves existing rows. There are no provider-price PostgreSQL writes, raw-response files or hidden caches.
+
+Authenticated, once-only cache transfer preserves canonical daily rows/IDs and available quote/intraday provenance through deployment entirely in RAM. Legacy rows whose original numeric epoch/full batch metadata were not exposed remain explicitly limited; missing evidence is never reconstructed. New transfer payloads preserve actual intraday source epoch strings. Ordinary restart still loses caches unless the controlled handoff is used; this is not durable backup or storage-rights approval.
+
+## P1 extension boundary
+
+WebSocket transport/decoder, secure normalized frontend events, bounded reconnect/fallback and official/provisional reconciliation are authorized next, but P0 must pass its separate software/live gate first. They must reuse this catalog, cache, budget policy and historical validator. No provisional/stream value may overwrite a qualified daily observation. P0 completion does not mark owner UAT or full VS-01 acceptance.
+
+Official contracts reviewed 2026-11-06: [quotes](https://dhanhq.co/docs/v2/market-quote/), [intraday](https://dhanhq.co/docs/v2/historical-data/), [SDK time conversion](https://github.com/dhan-oss/DhanHQ-py/blob/main/src/dhanhq/dhanhq.py), [market feed](https://dhanhq.co/docs/v2/live-market-feed/). These references establish API behavior, not unrestricted storage/redistribution rights.
+
+
+## P1 streaming and reconciliation implementation
+
+Owner Step 5E authorization expands D-16 to explicit live/intraday research without revising the immutable requirements/Decision Register. `dhan_feed.py` decodes only subscribed, length-checked little-endian ticker/quote/previous-close packets and sanitized disconnect codes. `feed_connection.py` bounds fixed-host DNS/TCP/TLS connection work. `market_stream.py` owns one backend connection for the adapter's existing verified catalog (maximum100), not a duplicate identity table. `market_stream_routes.py` exposes authenticated normalized SSE/control/status and reconciliation APIs. `market_reconciliation.py` orchestrates the existing daily canonical validator and separate intraday candidates. No new persistence architecture or trading SDK.
+
+IEEE-754 binary32 prices are decoded through integer bits and high-precision Decimal powers, then recovered only when exactly one verified exchange tick lies inside the conservative binary rounding interval. Nonfinite, negative, off-tick or ambiguous values are rejected. The 2026-11-06 detailed Dhan master confirms tick_size1 paise for each primary ETF; the official [tick-unit FAQ](https://dhan.co/support/platforms/dhanhq-api/in-what-unit-is-the-tick-size-provided-in-the-scrip-master/) establishes paise. Canonical daily/intraday calculations remain unchanged. This is evidence-based wire decoding, not silently rounding arbitrary fractional prices.
+
+### Feed timestamp candidate: distinct from historical timestamps
+
+Official [feed documentation](https://dhanhq.co/docs/v2/live-market-feed/) calls LTT EPOCH. The [official SDK](https://github.com/dhan-oss/DhanHQ-py/blob/main/src/dhanhq/marketfeed.py) renders its UTC clock fields directly as HH:MM:SS. During the 2026-11-06 qualification, Unix-UTC candidates15:57:30,15:57:35,15:59:56,15:59:41 were later than backend UTC12:32:28. Their clock fields exactly matched the independently retrieved REST last-trade strings in IST for the same four ETFs. An initial strict Unix-UTC feed decoder correctly rejected these four future candidates.
+
+The explicit **SDK_UTC_CLOCK_FIELDS_AS_IST_CANDIDATE_V1** policy attaches Asia/Kolkata to these feed UTC clock fields. It is fixed per feed adapter, not a magnitude-based unit guess or fallback selected when a value fails. It preserves the original wire seconds in transient per-instrument metadata, keeps future/range checks under that candidate interpretation, and labels all stream quotes with the provisional interpretation. Resulting UTC times10:27:30,10:27:35,10:29:56,10:29:41 exactly matched REST evidence. This is corroboration for this sample, not a universal exchange/feed session contract. History/intraday epoch conversion is not modified. Market-open, date-rollover, special-session and independent-provider evidence remain necessary for full timestamp/source qualification (SQ-01/T-03); no ADR/DC approval is inferred.
+
+### Lifecycle, security and application delivery
+
+One shared connection,100 verified catalog cap, bounded frame4096bytes/receive queue16, three reconnects after the first attempt with1/2/4second waits. Every reconnection restores subscriptions. Auth/entitlement/rate/provider-disconnect errors stop automatic retries; exhausted/disconnected feeds require explicit retry. DNS waits2seconds with at most one outstanding resolver; TCP tries at most two same-host addresses within a total8second dial/handshake deadline; TLS certificates/hostname remain verified. Provider pings receive library pongs; client health pings10seconds with5second wait. Graceful stop/join is bounded. Idle viewers stop the feed after30seconds; automatic connections pause outside reviewed regular hours; manual read-only snapshots remain possible. No startup connection.
+
+The provider-required credential-bearing WSS URL exists only inside backend memory. A private nonpropagating quiet logger prevents URL/packet debug logging; sanitized fixed codes replace exception text. Browser SSE uses the local bearer header plus checked Origin, never provider secrets or token query strings. At most16 viewers receive coalesced latest snapshots once/second without raw tick queues. Snapshot locks run outside ASGI's event loop. Hidden tabs detach. Local-channel reconnects are bounded too; controlled visible/open-session quote polling resumes when feed health is unavailable. Cached trade age still determines STALE even when connection/reception is recent. Out-of-order/duplicate feed events are suppressed; older REST responses cannot roll back newer stream prices. New-session ticker packets never inherit previous-session OHLC/volume or stale previous-close evidence.
+
+### Reconciliation and historical integrity
+
+One instrument/session/interval per reconciliation operation. T-1 eligibility, existing single flight/budgets/negative cache and canonical validation apply to any necessary official daily retrieval; no tick/quote can become a daily input. Existing validated official observations are reused. Intraday aggregation selects exactly one timeframe, checks continuous regular-session coverage and sums only asserted per-candle volume. Finality and source qualification remain separate.
+
+Any nonzero comparable OHLCV field difference requires review, rather than an invented investment-materiality threshold. A bounded1000-record RAM ledger retains observation/batch IDs, original/provisional hashes, differing field names and timestamps; audit history is capped1000 and status exposes the latest100. Validated daily observations supersede the provisional presentation; normalized revision notifications refresh daily/intraday charts and indicators without double-counting. Differing existing daily values still require the existing explicit refresh/revision pathway. No independent adjustment, volume-scope or total-return compatibility is asserted. Current-session publication waits until provider eligibility. These checks are active-view/on-demand, not scheduled ingestion.
+
+Trace: REQ-02 data/timeframe/provenance -> market_session/stream/reconciliation; REQ-03-007 deterministic indicators -> unchanged analytics and isolated daily inputs; REQ-05 local security -> authenticated SSE, bounded connector and credential tests. Evidence: `test_market_stream.py`, `MarketStream.test.tsx`, `market-stream.spec.ts` and [P1 checkpoint](../04-planning/VS-01_STEP5E_P1_CHECKPOINT.md).

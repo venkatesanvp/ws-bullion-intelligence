@@ -1,3 +1,5 @@
+import DataViewport, {DATA_PAGE_SIZE} from './DataViewport';
+import { canResearch, ensureProviderHistory, acquisitionMessage } from './api';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { ApiError, Call, ComparisonResult, Instrument, Source } from './api';
 import { ChartBoundary, DataClass, ResearchField as Field, ResearchQuality, researchProblem, safeVolume } from './ResearchShared';
@@ -9,17 +11,31 @@ export default function ComparisonPanel({ api, instruments, sources }: { api: Ca
   const [selection, setSelection] = useState<Selection[]>([blank(), blank()]);
   const [start, setStart] = useState(''), [end, setEnd] = useState('');
   const [result, setResult] = useState<ComparisonResult | null>(null);
+  const [acquisition, setAcquisition] = useState('');
   const [problem, setProblem] = useState(''), [busy, setBusy] = useState(false);
-  const [shownRows, setShownRows] = useState(100);
+  const [shownRows, setShownRows] = useState(DATA_PAGE_SIZE);
   const generation = useRef(0), abort = useRef<AbortController | null>(null);
   useEffect(() => () => { ++generation.current; abort.current?.abort(); }, []);
-  function clear() { ++generation.current; abort.current?.abort(); setBusy(false); setResult(null); setProblem(''); setShownRows(100); }
+  function clear() { ++generation.current; abort.current?.abort(); setBusy(false); setResult(null); setProblem(''); setShownRows(DATA_PAGE_SIZE); }
   function edit(index: number, field: keyof Selection, value: string) { clear(); setSelection(old => old.map((item,i) => i === index ? { ...item, [field]: value } : item)); }
   async function compare() {
-    clear();
+    ++generation.current; abort.current?.abort(); setProblem(''); setAcquisition('');
     if (!start || !end || selection.some(s => !s.instrument_id || !s.source_id || !s.price_basis)) { setProblem('Select each listing, source, basis and both comparison dates.'); return; }
     const current = generation.current, controller = new AbortController(); abort.current = controller; setBusy(true);
     try {
+      const messages: string[] = [];
+      for (const item of selection) {
+        const instrument = instruments.find(i => i.id === item.instrument_id), source = sources.find(s => s.id === item.source_id);
+        if (instrument && source && item.price_basis === 'PROVIDER_ADJUSTED') {
+          try {
+            const update = await ensureProviderHistory(api, instrument, source, start, end, controller.signal);
+            if (update) messages.push(instrument.symbol + ': ' + acquisitionMessage(update));
+            if (update?.error) break;
+          } catch (error) { if (controller.signal.aborted) throw error; messages.push(researchProblem(error)); break; }
+        }
+      }
+      if (current !== generation.current || controller.signal.aborted) return;
+      setAcquisition(messages.join(' '));
       const response = await api<ComparisonResult>('/comparisons', { method: 'POST', signal: controller.signal,
         body: JSON.stringify({ series: selection, start, end }) });
       if (current === generation.current && !controller.signal.aborted) setResult(response.data);
@@ -31,7 +47,7 @@ export default function ComparisonPanel({ api, instruments, sources }: { api: Ca
     } finally { if (current === generation.current) setBusy(false); }
   }
   const synthetic = selection.some(s => sources.find(source => source.id === s.source_id)?.profile.data_class === 'SYNTHETIC_TEST');
-  const eligible = selection.every(s => sources.find(source => source.id === s.source_id)?.qualification === 'QUALIFIED_FOR_RESEARCH');
+  const eligible = selection.every(s => canResearch(sources.find(source => source.id === s.source_id)));
   return <div className="research-dashboard">
     <section className="card"><div className="eyebrow">COMMON-DATE RESEARCH</div><h2>Price-only ETF comparisons</h2>
       <p>Choose two to ten distinct listings with explicit sources and compatible bases. Only common observed dates are used; no prices are forward-filled.</p>
@@ -49,19 +65,20 @@ export default function ComparisonPanel({ api, instruments, sources }: { api: Ca
       </form>
     </section>
     {busy && <p role="status" className="loading">Comparing common-date observations.</p>}
+    {acquisition && <p role="status" className="notice">{acquisition}</p>}
     {problem && <p role="alert" className="notice error">{problem}</p>}
     {result && <>
       <section className="card"><h3>Comparison evidence</h3><p><strong>{result.status}</strong>{result.unavailable_reason ? ': ' + result.unavailable_reason : ''}</p>
         <p>Requested: {result.requested_period.start} through {result.requested_period.end}. Actual common endpoints: {result.effective_period.start || 'Unavailable'} through {result.effective_period.end || 'Unavailable'} | {result.common_observation_count} common observations.</p>
         <p className="notice warning">Price-only change is not total return. Dividends, distributions and corporate-action adjustments are not invented. Historical changes do not imply future performance.</p>
-        <div className="table-wrap"><table><caption>Common-endpoint price-only metrics</caption><thead><tr><th>ETF / source</th><th>Basis / currency</th><th>Common ending close</th><th>Reported volume</th><th>Price-only change %</th></tr></thead><tbody>{result.series.map(s => <tr key={s.key}><td>{s.meta.instrument.symbol}<small>{s.meta.source.label} | {s.data_class}</small></td><td>{s.price_basis} | {s.currency}</td><td>{s.close_end ?? 'Unavailable'}</td><td>{safeVolume(s.volume_end)}</td><td>{s.price_change_percent ?? 'Unavailable'}</td></tr>)}</tbody></table></div>
+        <DataViewport className="table-wrap" label="Comparison summary"><table><caption>Common-endpoint price-only metrics</caption><thead><tr><th>ETF / source</th><th>Basis / currency</th><th>Common ending close</th><th>Reported volume</th><th>Price-only change %</th></tr></thead><tbody>{result.series.map(s => <tr key={s.key}><td>{s.meta.instrument.symbol}<small>{s.meta.source.label} | {s.data_class}</small></td><td>{s.price_basis} | {s.currency}</td><td>{s.close_end ?? 'Unavailable'}</td><td>{safeVolume(s.volume_end)}</td><td>{s.price_change_percent ?? 'Unavailable'}</td></tr>)}</tbody></table></DataViewport>
         <details><summary>Comparison calculation provenance</summary><p>Method: {result.method_version}. Computed: {result.computed_at}.</p><p>Input fingerprint: <code>{result.input_fingerprint}</code></p><p>Derived values are serialized to 12 decimal places; this does not establish market-data accuracy.</p></details>
       </section>
       {result.status === 'AVAILABLE' && <section className="card"><h3>Common-date price normalization</h3><p>Each series starts at 100 on the actual common starting date. This is price normalization, not a portfolio or total-return model.</p>
         <ChartBoundary><Suspense fallback={<p role="status">Loading local chart module.</p>}><Chart title="Price-only common-date comparison" identity={result.input_fingerprint} traces={result.series.map(s => ({ name: s.meta.instrument.symbol, dates: s.values.map(v => v.trading_date), values: s.values.map(v => v.rebased_price) }))}/></Suspense></ChartBoundary>
       </section>}
       {result.series.map(s => <section className="card" key={s.key}><h3>{s.meta.instrument.symbol} source and quality</h3><DataClass synthetic={s.data_class === 'SYNTHETIC_TEST'}/><ResearchQuality meta={s.meta}/></section>)}
-      {result.common_dates.length > 0 && <section className="card"><h3>Exact common-date values</h3><p>{Math.min(shownRows,result.common_dates.length)} of {result.common_dates.length} rows shown. Dates outside the intersection are absent.</p><div className="table-wrap"><table><caption>Exact comparison observations and normalized values</caption><thead><tr><th>Date</th>{result.series.map(s => <th key={s.key}>{s.meta.instrument.symbol} ? close / normalized</th>)}</tr></thead><tbody>{result.common_dates.slice(0,shownRows).map((day,index) => <tr key={day}><td>{day}</td>{result.series.map(s => <td key={s.key}>{s.values[index].close} / {s.values[index].rebased_price ?? 'Unavailable'}</td>)}</tr>)}</tbody></table></div>{shownRows < result.common_dates.length && <button onClick={() => setShownRows(n => n+100)}>Show more comparison rows</button>}</section>}
+      {result.common_dates.length > 0 && <section className="card"><h3>Exact common-date values</h3><p>{Math.min(shownRows,result.common_dates.length)} of {result.common_dates.length} rows shown. Dates outside the intersection are absent.</p><DataViewport className="table-wrap" label="Common-date comparison values"><table><caption>Exact comparison observations and normalized values</caption><thead><tr><th>Date</th>{result.series.map(s => <th key={s.key}>{s.meta.instrument.symbol} ? close / normalized</th>)}</tr></thead><tbody>{result.common_dates.slice(0,shownRows).map((day,index) => <tr key={day}><td>{day}</td>{result.series.map(s => <td key={s.key}>{s.values[index].close} / {s.values[index].rebased_price ?? 'Unavailable'}</td>)}</tr>)}</tbody></table></DataViewport>{shownRows < result.common_dates.length && <button onClick={() => setShownRows(n => n+DATA_PAGE_SIZE)}>Show more comparison rows</button>}</section>}
     </>}
   </div>;
 }

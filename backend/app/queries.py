@@ -14,6 +14,9 @@ def find(db, model, value):
 
 
 def series(db, instrument_id: UUID, source_id: UUID):
+    memory = db.info.get("transient_research")
+    if memory is not None and memory.has_series(instrument_id, source_id):
+        return memory.series(instrument_id, source_id)
     instrument = find(db, Instrument, instrument_id)
     source = find(db, DataSource, source_id)
     if source.qualification != "QUALIFIED_FOR_RESEARCH":
@@ -32,6 +35,9 @@ def series_meta(
     end: date | None,
     as_of: datetime | None = None,
 ):
+    memory = db.info.get("transient_research")
+    if memory is not None and memory.has_series(instrument.id, source.id):
+        return memory.meta(instrument, source, basis, start, end, as_of)
     conditions = [
         Observation.instrument_id == instrument.id,
         Observation.source_id == source.id,
@@ -53,6 +59,64 @@ def series_meta(
             func.min(Observation.trading_date), func.max(Observation.trading_date), func.count()
         ).where(*selected_conditions)
     ).one()
+    observed_dates = (
+        list(db.scalars(select(Observation.trading_date).where(*selected_conditions)))
+        if source.profile.get("calendar")
+        else []
+    )
+    publication_unknown = (
+        db.scalar(
+            select(func.count())
+            .select_from(Observation)
+            .where(*conditions, Observation.provider_published_at.is_(None))
+        )
+        or 0
+    )
+    issue_counts = dict(
+        db.execute(
+            select(QualityResult.severity, func.count())
+            .join(ImportBatch, ImportBatch.id == QualityResult.batch_id)
+            .where(ImportBatch.instrument_id == instrument.id, ImportBatch.source_id == source.id)
+            .group_by(QualityResult.severity)
+        ).all()
+    )
+    return describe_series(
+        instrument,
+        source,
+        basis,
+        start,
+        end,
+        as_of,
+        first,
+        last,
+        total,
+        range_first,
+        range_last,
+        count,
+        observed_dates,
+        publication_unknown,
+        issue_counts,
+    )
+
+
+def describe_series(
+    instrument,
+    source,
+    basis,
+    start,
+    end,
+    as_of,
+    first,
+    last,
+    total,
+    range_first,
+    range_last,
+    count,
+    observed_dates,
+    publication_unknown,
+    issue_counts,
+):
+    """Shared quality/provenance assessment for SQL and transient canonical readers."""
     assessment = as_of or datetime.now(timezone.utc)
     if assessment.tzinfo is None or assessment.utcoffset() is None:
         raise APIError(422, "TIMEZONE_REQUIRED", "Assessment time requires a timezone.")
@@ -64,20 +128,12 @@ def series_meta(
         window_start, window_end = start or range_first, end or range_last
         lower = max(window_start.isoformat(), range_first.isoformat(), calendar["coverage_start"])
         upper = min(window_end.isoformat(), range_last.isoformat(), calendar["coverage_end"])
+        if profile.get("acquisition_review") and end is not None:
+            # Explicit provider request bounds must expose a T-1/trailing gap.
+            # CSV's established observed-range assessment stays unchanged.
+            upper = min(end.isoformat(), calendar["coverage_end"])
         expected = {date.fromisoformat(d) for d in calendar["session_dates"] if lower <= d <= upper}
-        observed = (
-            set(
-                db.scalars(
-                    select(Observation.trading_date).where(
-                        *selected_conditions,
-                        Observation.trading_date >= date.fromisoformat(lower),
-                        Observation.trading_date <= date.fromisoformat(upper),
-                    )
-                )
-            )
-            if lower <= upper
-            else set()
-        )
+        observed = {d for d in observed_dates if lower <= d.isoformat() <= upper}
         missing = sorted(expected - observed)
         fully_covered = (
             calendar["coverage_start"] <= window_start.isoformat()
@@ -88,14 +144,6 @@ def series_meta(
             if fully_covered
             else "PARTIALLY_ASSESSED"
         )
-    publication_unknown = (
-        db.scalar(
-            select(func.count())
-            .select_from(Observation)
-            .where(*conditions, Observation.provider_published_at.is_(None))
-        )
-        or 0
-    )
     freshness = {
         "status": "UNASSESSED",
         "assessment_as_of": plain(assessment),
@@ -116,17 +164,17 @@ def series_meta(
                 status="FRESH" if last == expected_latest else "STALE",
                 reason="EXPLICIT_SOURCE_AS_OF_POLICY",
             )
-    issue_counts = dict(
-        db.execute(
-            select(QualityResult.severity, func.count())
-            .join(ImportBatch, ImportBatch.id == QualityResult.batch_id)
-            .where(ImportBatch.instrument_id == instrument.id, ImportBatch.source_id == source.id)
-            .group_by(QualityResult.severity)
-        ).all()
-    )
     flags = []
     if not calendar:
         flags.append("CALENDAR_UNVERIFIED")
+    if source.profile.get("acquisition_review"):
+        flags.extend(
+            [
+                "TIMESTAMP_CONTRACT_UNVERIFIED",
+                "ADJUSTMENT_METHOD_UNVERIFIED",
+                "NO_INDEPENDENT_PRICE_RECONCILIATION",
+            ]
+        )
     if publication_unknown:
         flags.append("PUBLICATION_TIME_UNKNOWN")
     if not profile.get("adjustment_definition_ref"):
@@ -147,6 +195,9 @@ def series_meta(
         "source": {
             "id": str(source.id),
             "label": source.label,
+            "source_kind": source.source_kind,
+            "contract_version": source.contract_version,
+            "acquisition_review": profile.get("acquisition_review"),
             "data_class": profile["data_class"],
             "qualification": source.qualification,
             "verification": "OWNER_RECORDED_NOT_THIRD_PARTY_VERIFIED",
@@ -179,5 +230,10 @@ def series_meta(
             "UNVERIFIED_FOR_REPLAY",
             "NO_INFERRED_PUBLICATION_TIME",
             "NOT_LIVE_OR_EXECUTABLE_PRICES",
+            *(
+                ["CANDIDATE_SESSION_MAPPING", "ADJUSTMENT_METHOD_UNVERIFIED"]
+                if profile.get("acquisition_review")
+                else []
+            ),
         ],
     }

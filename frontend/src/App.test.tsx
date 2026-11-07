@@ -38,8 +38,8 @@ afterEach(() => vi.unstubAllGlobals());
 async function login() {
   const user = userEvent.setup(); render(<App/>);
   await user.type(screen.getByLabelText('Local application token'), TOKEN);
-  await user.click(screen.getByRole('button', { name: /Open workspace/ }));
-  await screen.findByRole('heading', { name: 'Data workbench' });
+  await user.click(screen.getByRole('button', { name: /Open Bullion Workspace/ }));
+  await screen.findByRole('heading', { name: 'Bullion Data Workspace' });
   return user;
 }
 describe('authorized data foundation', () => {
@@ -59,10 +59,10 @@ describe('authorized data foundation', () => {
   it('shows readiness failures and permits deliberate retry', async () => {
     extra = url => url.endsWith('/health/ready') ? new Response(JSON.stringify({ error: { code: 'DEPENDENCY_NOT_READY', message: 'Database requires migration.' } }), { status: 503 }) : undefined;
     const user = userEvent.setup(); render(<App/>);
-    await user.type(screen.getByLabelText('Local application token'), TOKEN); await user.click(screen.getByRole('button', { name: /Open workspace/ }));
+    await user.type(screen.getByLabelText('Local application token'), TOKEN); await user.click(screen.getByRole('button', { name: /Open Bullion Workspace/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('DEPENDENCY_NOT_READY');
-    expect(screen.queryByRole('heading', { name: 'Data workbench' })).not.toBeInTheDocument();
-    extra = undefined; await user.click(screen.getByRole('button', { name: /Open workspace/ })); await screen.findByRole('heading', { name: 'Data workbench' });
+    expect(screen.queryByRole('heading', { name: 'Bullion Data Workspace' })).not.toBeInTheDocument();
+    extra = undefined; await user.click(screen.getByRole('button', { name: /Open Bullion Workspace/ })); await screen.findByRole('heading', { name: 'Bullion Data Workspace' });
   });
   it('never paints a delayed Gold response under a Silver selection', async () => {
     let resolveGold!: (response: Response) => void;
@@ -107,8 +107,126 @@ describe('authorized data foundation', () => {
     expect(screen.getByText(/No sample market prices are preloaded/)).toBeInTheDocument();
   });
   it('clears the token and workspace when locked', async () => {
-    const user = await login(); await user.click(screen.getByRole('button', { name: 'Lock workspace' }));
+    const user = await login(); await user.click(screen.getByRole('button', { name: 'Lock Bullion Workspace' }));
     expect(screen.getByLabelText('Local application token')).toHaveValue('');
-    expect(screen.queryByRole('heading', { name: 'Data workbench' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Bullion Data Workspace' })).not.toBeInTheDocument();
   });
+});
+
+
+it('registers a provider source without exposing credential or retrieval controls', async () => {
+  const user = await login();
+  await user.click(screen.getByRole('button', { name: 'Source qualification' }));
+  await user.type(screen.getByLabelText('Source label'), 'Synthetic Dhan contract fixture');
+  await user.selectOptions(screen.getByLabelText('Source type'), 'DHANHQ');
+  let registration: Record<string, unknown> | undefined;
+  extra = (url, options) => {
+    if (url.endsWith('/data-sources') && options?.method === 'POST') {
+      registration = JSON.parse(String(options.body));
+      return reply({ ...source, id: 'synthetic-provider-id' }, {}, 201);
+    }
+    return undefined;
+  };
+  await user.click(screen.getByRole('button', { name: 'Register source' }));
+  await waitFor(() => expect(registration).toMatchObject({ source_kind: 'DHANHQ', contract_version: 'dhan-daily-v1-provisional' }));
+  expect(JSON.stringify(registration)).not.toMatch(/access.token|api.secret|client.id/i);
+  expect(screen.queryByLabelText(/access token|api key|api secret/i)).toBeNull();
+});
+
+
+it('selects the supported Dhan price basis and explains a requested range after the loaded history', async () => {
+  const provider = { ...source, source_kind: 'DHANHQ', label: 'SYNTHETIC Dhan source fixture',
+    qualification: 'TRANSIENT_OWNER_AUTHORIZED_UNQUALIFIED', permitted_uses: { retrieval: true, analysis: true, display: true, storage: false } };
+  const loaded = { ...meta, source: { ...meta.source, label: provider.label },
+    coverage: { ...meta.coverage, dataset_first_date: '2025-11-03', dataset_last_date: '2026-10-30',
+      range_first_date: '2026-10-30', range_last_date: '2026-10-30', count: 1, dataset_count: 246 } };
+  extra = url => {
+    if (url.includes('/data-sources?')) return reply([provider]);
+    if (url.includes('/history?')) {
+      const query = new URL(url).searchParams;
+      if (query.get('start') === '2026-11-02') return reply([], { ...loaded,
+        coverage: { ...loaded.coverage, count: 0, range_first_date: null, range_last_date: null } });
+      return reply([{ ...observation, trading_date: '2026-10-30' }], loaded);
+    }
+    return undefined;
+  };
+  const user = await login();
+  await waitFor(() => expect(screen.getByRole('combobox', { name: 'Price basis' })).toHaveValue('PROVIDER_ADJUSTED'));
+  await screen.findByText('10.1234567890');
+  fireEvent.change(screen.getByLabelText('From', { exact: true }), { target: { value: '2026-11-02' } });
+  fireEvent.change(screen.getByLabelText('Through', { exact: true }), { target: { value: '2026-11-06' } });
+  await user.click(screen.getByRole('button', { name: 'Apply range' }));
+  expect(await screen.findByText(/Range applied: 2026-11-02 through 2026-11-06. 0 matching observations/)).toBeInTheDocument();
+  expect(screen.getByText(/Loaded history is 2025-11-03 through 2026-10-30/)).toHaveTextContent('does not download newer data');
+  expect(screen.queryByText('10.1234567890')).toBeNull();
+  expect(fetchMock.mock.calls.some(([url]) => String(url).includes('start=2026-11-02') && String(url).includes('end=2026-11-06'))).toBe(true);
+});
+
+it('paginates the applied range even when draft dates have changed', async () => {
+  const urls: string[] = [];
+  extra = url => {
+    if (!url.includes('/history?')) return undefined;
+    urls.push(url);
+    const q = new URL(url).searchParams;
+    return reply([{ ...observation, id: q.has('cursor') ? 'next-row' : observation.id }],
+      { ...meta, page: { next_cursor: q.has('cursor') ? null : 'synthetic-next-page' } });
+  };
+  const user = await login(); await screen.findByText('10.1234567890');
+  fireEvent.change(screen.getByLabelText('From', { exact: true }), { target: { value: '2026-01-01' } });
+  fireEvent.change(screen.getByLabelText('Through', { exact: true }), { target: { value: '2026-01-31' } });
+  await user.click(screen.getByRole('button', { name: 'Apply range' }));
+  await screen.findByText(/Range applied: 2026-01-01 through 2026-01-31/);
+  fireEvent.change(screen.getByLabelText('From', { exact: true }), { target: { value: '2026-02-01' } });
+  await user.click(screen.getByRole('button', { name: 'Load more observations' }));
+  await waitFor(() => expect(urls.some(url => new URL(url).searchParams.has('cursor'))).toBe(true));
+  const next = new URL(urls.find(url => new URL(url).searchParams.has('cursor'))!).searchParams;
+  expect(next.get('start')).toBe('2026-01-01'); expect(next.get('end')).toBe('2026-01-31');
+});
+
+
+it('Apply range acquires missing provider data, shows loading, then displays updated history', async () => {
+  // Synthetic responses exercise REAL_MARKET routing only; no provider connection.
+  const provider = { ...source, source_kind: 'DHANHQ', qualification: 'TRANSIENT_OWNER_AUTHORIZED_UNQUALIFIED',
+    permitted_uses: { retrieval: true, analysis: true, display: true, storage: false }, profile: { ...source.profile, data_class: 'REAL_MARKET' } };
+  const bodies: Record<string,unknown>[] = [];
+  let complete: ((response: Response) => void) | undefined;
+  extra = (url, options) => {
+    if (url.includes('/data-sources?')) return reply([provider]);
+    if (url.endsWith('/market-data/policy')) return reply({ enabled: true, auto_refresh_seconds: 0 });
+    if (url.endsWith('/market-data/ensure')) {
+      const body=JSON.parse(String(options?.body)); bodies.push(body);
+      if (body.start === '2026-11-02') return new Promise(resolve => { complete = resolve; });
+      return reply({status:'REUSED',requests:0,added:0,error:null,latest_provider_eligible_session_candidate:'2026-11-05'});
+    }
+    if (url.includes('/history?') && new URL(url).searchParams.get('start') === '2026-11-02') return reply([{...observation,trading_date:'2026-11-02'}],{...meta,coverage:{...meta.coverage,range_first_date:'2026-11-02',range_last_date:'2026-11-02'}});
+    return undefined;
+  };
+  const user=await login(); await screen.findByText('10.1234567890');
+  fireEvent.change(screen.getByLabelText('From',{exact:true}),{target:{value:'2026-11-02'}});
+  fireEvent.change(screen.getByLabelText('Through',{exact:true}),{target:{value:'2026-11-06'}});
+  await user.click(screen.getByRole('button',{name:'Apply range'}));
+  await screen.findByText(/Checking coverage and downloading missing/);
+  expect(screen.getByRole('button',{name:'Applying range...'})).toBeDisabled();
+  await waitFor(()=>expect(complete).toBeTypeOf('function'));
+  await act(async()=>complete!(reply({status:'PARTIAL',requests:1,added:1,error:null,latest_provider_eligible_session_candidate:'2026-11-05'})));
+  expect(await screen.findByText(/Historical data updated successfully. 1 observations added/)).toHaveTextContent('Some requested sessions are not yet available');
+  expect(bodies.at(-1)).toMatchObject({instrument_id:instrument.id,source_id:source.id,start:'2026-11-02',end:'2026-11-06',refresh:false});
+  expect(await screen.findByText(/Range applied: 2026-11-02 through 2026-11-06/)).toBeInTheDocument();
+});
+
+it('keeps previously displayed valid rows when provider authentication fails for an empty requested range',async()=>{
+  const provider={...source,source_kind:'DHANHQ',qualification:'TRANSIENT_OWNER_AUTHORIZED_UNQUALIFIED',
+    permitted_uses:{retrieval:true,analysis:true,display:true,storage:false},profile:{...source.profile,data_class:'REAL_MARKET'}};
+  extra=(url,options)=>{
+    if(url.includes('/data-sources?'))return reply([provider]);
+    if(url.endsWith('/market-data/policy'))return reply({enabled:true,auto_refresh_seconds:0});
+    if(url.endsWith('/market-data/ensure'))return reply({status:'PARTIAL',requests:0,added:0,error:JSON.parse(String(options?.body)).start?'AUTH_EXPIRED':null,latest_provider_eligible_session_candidate:'2026-11-05'});
+    if(url.includes('/history?')&&new URL(url).searchParams.has('start'))return reply([],{...meta,coverage:{...meta.coverage,count:0}});
+    return undefined;
+  };
+  const user=await login(); await screen.findByText('10.1234567890');
+  fireEvent.change(screen.getByLabelText('From',{exact:true}),{target:{value:'2026-11-02'}});
+  await user.click(screen.getByRole('button',{name:'Apply range'}));
+  await screen.findByText(/DhanHQ authentication has expired/);
+  expect(screen.getByText('10.1234567890')).toBeInTheDocument();
 });

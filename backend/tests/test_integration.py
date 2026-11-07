@@ -91,7 +91,7 @@ def history(client, metadata, **params):
 
 def test_migration_revision_and_constraints(api, db_engine):
     assert (
-        api.get("/api/v1/health/ready").json()["data"]["schema_revision"] == "0001_market_workbench"
+        api.get("/api/v1/health/ready").json()["data"]["schema_revision"] == "0002_provider_ingestion"
     )
     expected = {
         "instruments",
@@ -561,5 +561,5 @@ def test_wrong_migration_revision_blocks_readiness_and_data(api, db_engine):
     finally:
         with db_engine.begin() as connection:
             connection.execute(
-                text("UPDATE alembic_version SET version_num='0001_market_workbench'")
+                text("UPDATE alembic_version SET version_num='0002_provider_ingestion'")
             )

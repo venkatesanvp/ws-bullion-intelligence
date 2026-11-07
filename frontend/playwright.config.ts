@@ -19,7 +19,10 @@ export default defineConfig({
     { command: `"${python}" -m uvicorn app.main:app --host 127.0.0.1 --port 8001 --no-access-log`,
       cwd: '.', url: 'http://127.0.0.1:8001/api/v1/health/live', timeout: 30_000,
       env: { PYTHONPATH: '../backend', DATABASE_URL: testUrl || '', LOCAL_APP_TOKEN: process.env.TEST_APP_TOKEN || '' }, reuseExistingServer: false },
-    { command: 'npm run dev -- --strictPort', url: 'http://127.0.0.1:5173',
+    { command: `"${python}" -m uvicorn tests.session_browser_app:app --host 127.0.0.1 --port 8002 --no-access-log`,
+      cwd: '.', url: 'http://127.0.0.1:8002/api/v1/health/live', timeout: 30_000,
+      env: { PYTHONPATH: '../backend', TEST_DATABASE_URL: testUrl || '', DATABASE_URL: testUrl || '', LOCAL_APP_TOKEN: process.env.TEST_APP_TOKEN || '' }, reuseExistingServer: false },
+    { command: 'npm run dev -- --strictPort' , url: 'http://127.0.0.1:5173',
       env: { VITE_API_ROOT: 'http://127.0.0.1:8001/api/v1' }, reuseExistingServer: false }
   ]
 });

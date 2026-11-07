@@ -30,7 +30,7 @@ test('synthetic chart, overlays, RSI, common-date comparison and unavailable bas
   const sample=await fixture(request),{token}=access();
   const external:string[]=[];
   page.on('request',request=>{const url=new URL(request.url());if(['http:','https:'].includes(url.protocol)&&!['http://127.0.0.1:5173','http://127.0.0.1:8001'].includes(url.origin))external.push(request.url());});
-  await page.goto('/');await page.getByLabel('Local application token').fill(token);await page.getByRole('button',{name:/Open workspace/}).click();
+  await page.goto('/');await page.getByLabel('Local application token').fill(token);await page.getByRole('button',{name:/Open Bullion Workspace/}).click();
   await page.getByRole('button',{name:'Research dashboard',exact:true}).click();
   await page.getByLabel('ETF listing').selectOption(sample.gold.id);await page.getByLabel('Data source').selectOption(sample.source.id);
   await expect(page.getByRole('table',{name:'Exact prices and server-calculated indicator values'})).toBeVisible();
@@ -83,7 +83,7 @@ test('synthetic chart, overlays, RSI, common-date comparison and unavailable bas
 
 test('synthetic missing history and flat RSI remain unavailable',async({page,request})=>{
   const empty=await fixture(request,false),flat=await fixture(request,true,true),{token}=access();
-  await page.goto('/');await page.getByLabel('Local application token').fill(token);await page.getByRole('button',{name:/Open workspace/}).click();await page.getByRole('button',{name:'Research dashboard',exact:true}).click();
+  await page.goto('/');await page.getByLabel('Local application token').fill(token);await page.getByRole('button',{name:/Open Bullion Workspace/}).click();await page.getByRole('button',{name:'Research dashboard',exact:true}).click();
   await page.getByLabel('ETF listing').selectOption(empty.gold.id);await page.getByLabel('Data source').selectOption(empty.source.id);
   await expect(page.getByText('No observations are available for this research range.',{exact:true})).toBeVisible();
   await page.getByLabel('ETF listing').selectOption(flat.gold.id);await page.getByLabel('Data source').selectOption(flat.source.id);

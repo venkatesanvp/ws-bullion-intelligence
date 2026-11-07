@@ -1,5 +1,13 @@
+import TechnicalWorkbench from './TechnicalWorkbench';
+import ForecastingResearch from './ForecastingResearch';
+import DataViewport, {DATA_PAGE_SIZE} from './DataViewport';
+import ReconciliationPanel from './ReconciliationPanel';
+import MarketSnapshot from './MarketSnapshot';
+import IntradayDashboard from './IntradayDashboard';
+import { supportsMarketSession } from './api';
+import { useMarketRefresh } from './useMarketRefresh';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError, Call, IndicatorResult, Instrument, PriceChartResult, SeriesMeta, Source } from './api';
+import { ApiError, canResearch, ensureProviderHistory, acquisitionMessage, hasLiveRetrieval, Call, IndicatorResult, Instrument, PriceChartResult, SeriesMeta, Source } from './api';
 import { ChartBoundary, DataClass, ResearchField as Field, ResearchQuality, researchProblem } from './ResearchShared';
 import type { ResearchTrace } from './ResearchChart';
 const Chart = lazy(() => import('./ResearchChart'));
@@ -12,18 +20,19 @@ type Calculation = { method: Method; n: number; result?: IndicatorResult; proble
 type Loaded = { chart: PriceChartResult; meta: SeriesMeta; calculations: Calculation[] };
 const sameRef = (a: PriceChartResult['series_ref'], b: IndicatorResult['series_ref']) => Number.isSafeInteger(a.revision) && Number.isSafeInteger(b.revision) && a.instrument_id === b.instrument_id && a.source_id === b.source_id && a.price_basis === b.price_basis && a.interval === b.interval && a.revision === b.revision && a.profile_digest === b.profile_digest;
 
-export default function ResearchDashboard({ api, instrument, source, basis }: { api: Call; instrument?: Instrument; source?: Source; basis: string }) {
+function DailyDashboard({ api, instrument, source, basis }: { api: Call; instrument?: Instrument; source?: Source; basis: string }) {
   const [draft, setDraft] = useState<Settings>(empty);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [problem, setProblem] = useState('');
+  const [acquisition, setAcquisition] = useState('');
   const [busy, setBusy] = useState(false);
-  const [shownRows, setShownRows] = useState(100);
+  const [shownRows, setShownRows] = useState(DATA_PAGE_SIZE);
   const generation = useRef(0), abort = useRef<AbortController | null>(null);
   const load = useCallback(async (settings: Settings) => {
     const current = ++generation.current;
     abort.current?.abort(); const controller = new AbortController(); abort.current = controller;
-    setLoaded(null); setProblem(''); setShownRows(100);
-    if (!instrument || source?.qualification !== 'QUALIFIED_FOR_RESEARCH') { setBusy(false); return; }
+    setProblem(''); setAcquisition(''); setShownRows(DATA_PAGE_SIZE);
+    if (!instrument || !source || !canResearch(source)) { setBusy(false); return; }
     for (const method of methods.filter(m => settings[m])) {
       const raw = period(settings, method), n = Number(raw);
       if (!/^\d+$/.test(raw) || !Number.isInteger(n) || n < (method === 'RSI' ? 2 : 1) || n > 10000) { setBusy(false); setProblem(method + ': enter an explicit supported integer lookback.'); return; }
@@ -34,6 +43,13 @@ export default function ResearchDashboard({ api, instrument, source, basis }: { 
     if (settings.asOf) params.set('assessment_as_of', settings.asOf);
     const path = '/instruments/' + instrument.id;
     try {
+      let failed = false;
+      try {
+        const warmup = Math.max(0, ...methods.filter(m => settings[m]).map(m => Number(period(settings, m)) + (m === 'RSI' ? 1 : 0)));
+        const update = basis === 'PROVIDER_ADJUSTED' ? await ensureProviderHistory(api, instrument, source, settings.start, settings.end, controller.signal, warmup) : null;
+        if (current !== generation.current) return;
+        setAcquisition(acquisitionMessage(update)); failed = Boolean(update?.error);
+      } catch (error) { if (controller.signal.aborted) throw error; setProblem(researchProblem(error)); failed = true; }
       const price = await api<PriceChartResult>(path + '/chart?' + params, { signal: controller.signal });
       if (!price.meta || !Number.isSafeInteger(price.data.series_ref.revision)) throw new Error('Research snapshot identity is unavailable. Reload the series.');
       const calculations = await Promise.all(methods.filter(m => settings[m]).map(async method => {
@@ -48,14 +64,22 @@ export default function ResearchDashboard({ api, instrument, source, basis }: { 
       if (current !== generation.current || controller.signal.aborted) return;
       if (calculations.some(c => c.result && (c.result.indicator_id !== c.method || c.result.n !== c.n))) throw new Error('RESEARCH_IDENTITY_MISMATCH: indicator parameters differ from the request. Reload research.');
       if (calculations.some(c => c.result && !sameRef(price.data.series_ref, c.result.series_ref))) throw new Error('SNAPSHOT_CHANGED: prices and indicators changed during loading. Reload to use one version.');
+      if (failed && price.data.points.length === 0) return;
       setLoaded({ chart: price.data, meta: price.meta as unknown as SeriesMeta, calculations });
-    } catch (error) { if (current === generation.current && !controller.signal.aborted) setProblem(researchProblem(error)); }
+    } catch (error) {
+      if (current === generation.current && !controller.signal.aborted) {
+        const message = researchProblem(error); setProblem(message);
+        if (/SNAPSHOT_CHANGED|RESEARCH_IDENTITY_MISMATCH/.test(message)) setLoaded(null);
+      }
+    }
     finally { if (current === generation.current) setBusy(false); }
   }, [api, instrument, source, basis]);
   useEffect(() => { setDraft(empty); void load(empty); return () => { ++generation.current; abort.current?.abort(); }; }, [load]);
+  const autoRefresh = useCallback(() => { if (!busy) void load(draft); }, [load, busy, draft]);
+  useMarketRefresh(api, source, autoRefresh);
   function rangeEdit(key: 'start' | 'end' | 'asOf', value: string) { ++generation.current; abort.current?.abort(); setBusy(false); setLoaded(null); setProblem(''); setDraft(old => ({ ...old, [key]: value })); }
   if (!instrument || !source) return <div className="empty">Select a configured ETF listing and source to open the research dashboard.</div>;
-  if (source.qualification !== 'QUALIFIED_FOR_RESEARCH') return <div className="empty">This source is {source.qualification.toLowerCase()}. Review its usage evidence before research.</div>;
+  if (!canResearch(source)) return <div className="empty">This source is {source.qualification.toLowerCase()}. Review its usage evidence before research.</div>;
   const calculations = loaded?.calculations.filter(c => draft[c.method] && Number(period(draft, c.method)) === c.n) || [];
   const price = loaded?.chart;
   const valueMaps = new Map(calculations.map(c => [c.method, new Map(c.result?.values.map(v => [v.trading_date, v]) || [])]));
@@ -78,7 +102,8 @@ export default function ResearchDashboard({ api, instrument, source, basis }: { 
         <button className="primary" disabled={busy}>Apply research settings</button>
       </form>
     </section>
-    {busy && <p role="status" className="loading">Loading research evidence.</p>}
+    {busy && <p role="status" className="loading">{hasLiveRetrieval(source) ? 'Checking coverage and downloading missing historical observations; then recalculating research.' : 'Loading research evidence.'}</p>}
+    {acquisition && <p role="status" className="notice">{acquisition}</p>}
     {problem && <div role="alert" className="notice error">{problem}<button onClick={() => void load(draft)}>Reload research</button></div>}
     {loaded && <>
       <ResearchQuality meta={loaded.meta}/>
@@ -93,11 +118,23 @@ export default function ResearchDashboard({ api, instrument, source, basis }: { 
         </section>)}
         {rsi?.values.some(v => v.value !== null) && <section className="card"><h3>Wilder RSI - separate scale</h3><ChartBoundary><Suspense fallback={<p>Loading local chart module.</p>}><Chart title={instrument.symbol + ' Wilder RSI'} rsi identity={rsi.input_fingerprint} traces={[{ name: 'Wilder RSI (' + rsi.n + ')', dates: rsi.values.map(v => v.trading_date), values: rsi.values.map(v => v.value), breaks: rsi.values.map(v => !!v.break_before), color: '#7958a8' }]}/></Suspense></ChartBoundary></section>}
         <section className="card"><h3>Exact research values</h3><p>{Math.min(shownRows,price.points.length)} of {price.points.length} rows shown. Warm-up and unavailable reasons are retained.</p>
-          <div className="table-wrap"><table><caption>Exact prices and server-calculated indicator values</caption><thead><tr><th>Date</th><th>Close / {instrument.currency}</th>{calculations.map(c => <th key={c.method}>{c.method} ({c.n})</th>)}<th>Source row / discontinuity</th></tr></thead>
-            <tbody>{price.points.slice(0,shownRows).map(point => <tr key={point.observation_id}><td>{point.trading_date}</td><td>{point.close}</td>{calculations.map(c => { const value = valueMaps.get(c.method)?.get(point.trading_date); return <td key={c.method}>{value?.value ?? ('Unavailable: ' + (value?.reason || c.result?.unavailable_reason || c.problem || 'Not calculated'))}</td>; })}<td>{point.batch_id.slice(0,8)} / {point.row_number}{point.break_before ? ' | ' + point.break_before : ''}</td></tr>)}</tbody></table></div>
-          {shownRows < price.points.length && <button onClick={() => setShownRows(n => n+100)}>Show more research rows</button>}
+          <DataViewport className="table-wrap" label="Daily research values"><table><caption>Exact prices and server-calculated indicator values</caption><thead><tr><th>Date</th><th>Close / {instrument.currency}</th>{calculations.map(c => <th key={c.method}>{c.method} ({c.n})</th>)}<th>Source row / discontinuity</th></tr></thead>
+            <tbody>{price.points.slice(0,shownRows).map(point => <tr key={point.observation_id}><td>{point.trading_date}</td><td>{point.close}</td>{calculations.map(c => { const value = valueMaps.get(c.method)?.get(point.trading_date); return <td key={c.method}>{value?.value ?? ('Unavailable: ' + (value?.reason || c.result?.unavailable_reason || c.problem || 'Not calculated'))}</td>; })}<td>{point.batch_id.slice(0,8)} / {point.row_number}{point.break_before ? ' | ' + point.break_before : ''}</td></tr>)}</tbody></table></DataViewport>
+          {shownRows < price.points.length && <button onClick={() => setShownRows(n => n+DATA_PAGE_SIZE)}>Show more research rows</button>}
         </section>
       </>}
     </>}
+  </div>;
+}
+
+
+export default function ResearchDashboard(props:{api:Call;instrument?:Instrument;source?:Source;basis:string}) {
+  const [view,setView]=useState<'daily'|'intraday'|'technical'|'forecast'>('daily');
+  const [revision,setRevision]=useState(0);
+  if(!props.instrument||!props.source||!canResearch(props.source))return <DailyDashboard {...props}/>;
+  const session=supportsMarketSession(props.source);
+  const synthetic=props.source?.profile.data_class==='SYNTHETIC_TEST';
+  return <div>{session&&<><MarketSnapshot api={props.api} synthetic={synthetic} onReconciliation={()=>setRevision(r=>r+1)}/><ReconciliationPanel api={props.api} instrument={props.instrument} onChange={()=>setRevision(r=>r+1)}/></>}<div className="range-bar" role="group" aria-label="Research timeframe"><button aria-pressed={view==='daily'} onClick={()=>setView('daily')}>Daily research</button>{session&&<button aria-pressed={view==='intraday'} onClick={()=>setView('intraday')}>Intraday research</button>}<button aria-pressed={view==='technical'} onClick={()=>setView('technical')}>Technical analytics</button>{session&&<button aria-pressed={view==='forecast'} onClick={()=>setView('forecast')}>Forecasting Research</button>}</div>
+    {view==='forecast'?<ForecastingResearch key={revision} api={props.api} instrument={props.instrument} source={props.source} basis={props.basis}/>:view==='technical'?<TechnicalWorkbench key={revision} api={props.api} instrument={props.instrument} source={props.source} basis={props.basis}/>:view==='daily'?<DailyDashboard key={revision} {...props}/>:<IntradayDashboard key={revision} api={props.api} instrument={props.instrument} synthetic={synthetic}/>}
   </div>;
 }

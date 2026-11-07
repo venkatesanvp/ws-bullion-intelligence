@@ -23,6 +23,9 @@ Basis = Literal["RAW_CLOSE", "PROVIDER_ADJUSTED", "UNKNOWN"]
 
 
 def bounded_points(db, instrument_id, source_id, basis, start=None, end=None):
+    memory = db.info.get("transient_research")
+    if memory is not None and memory.has_series(instrument_id, source_id):
+        return memory.points(instrument_id, source_id, basis, start, end)
     statement = select(Observation).where(
         Observation.instrument_id == instrument_id,
         Observation.source_id == source_id,

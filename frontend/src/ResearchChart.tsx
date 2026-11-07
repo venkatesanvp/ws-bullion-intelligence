@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Plotly from 'plotly.js-basic-dist-min';
 import type { Data, Layout } from 'plotly.js';
 
-export interface ResearchTrace { name: string; dates: string[]; values: (string | null)[]; breaks?: boolean[]; color?: string }
+export interface ResearchTrace { name: string; dates: string[]; values: (string | null)[]; breaks?: boolean[]; color?: string; mode?: 'markers' | 'lines+markers' }
 const escaped = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 
 export default function ResearchChart({ title, traces, identity, rsi = false }: { title: string; traces: ResearchTrace[]; identity: string; rsi?: boolean }) {
@@ -26,7 +26,7 @@ export default function ResearchChart({ title, traces, identity, rsi = false }: 
         x.push(day); y.push(coordinate !== null && Number.isFinite(coordinate) ? coordinate : null);
         exact.push(raw ?? 'Unavailable');
       });
-      return { type: 'scatter', mode: 'lines+markers', name: escaped(trace.name), x, y, customdata: exact,
+      return { type: 'scatter', mode: trace.mode || 'lines+markers', name: escaped(trace.name), x, y, customdata: exact,
         connectgaps: false, marker: { size: 4 }, line: { color: trace.color, width: 2, shape: 'linear' },
         hovertemplate: '%{x|%Y-%m-%d}<br>%{customdata}<extra>' + escaped(trace.name) + '</extra>' };
     });

@@ -1,0 +1,32 @@
+import {expect,test} from '@playwright/test';
+import {randomUUID} from 'node:crypto';
+
+test('fifteen-row workspace preserves all rows, sticky headers, range filtering and mobile containment',async({page,request})=>{
+ const token=process.env.TEST_APP_TOKEN;if(!token)throw Error('Synthetic token required');
+ const root='http://127.0.0.1:8001/api/v1',headers={Authorization:'Bearer '+token,Origin:'http://127.0.0.1:5173'},suffix=randomUUID().slice(0,8).toUpperCase();
+ const sr=await request.post(root+'/data-sources',{headers,data:{label:'SYNTHETIC UX '+suffix,profile:{data_class:'SYNTHETIC_TEST',policy_version:'quality-v1'}}});expect(sr.status()).toBe(201);const source=(await sr.json()).data;
+ expect((await request.patch(root+'/data-sources/'+source.id+'/qualification',{headers,data:{qualification:'QUALIFIED_FOR_RESEARCH',rights_evidence_ref:'SYNTHETIC TEST ONLY',retention_review_ref:'Disposable test database',permitted_uses:{retrieval:true,storage:true,analysis:true,display:true}}})).status()).toBe(200);
+ const ir=await request.post(root+'/instruments',{headers,data:{exchange:'XNSE',symbol:'UX_'+suffix,name:'SYNTHETIC UX FIXTURE',metal:'GOLD',currency:'INR'}});expect(ir.status()).toBe(201);const instrument=(await ir.json()).data;
+ const days=Array.from({length:45},(_,i)=>new Date(Date.UTC(2026,0,1+i)).toISOString().slice(0,10));
+ const csv='trading_date,close\n'+days.map((d,i)=>d+','+String(100+i)).join('\n')+'\n';
+ const imported=await request.post(root+'/import-batches',{headers:{...headers,'Idempotency-Key':randomUUID()},multipart:{metadata_json:JSON.stringify({instrument_id:instrument.id,source_id:source.id,interval:'1d',price_basis:'RAW_CLOSE',mapping_version:'synthetic-ux-v1',column_map:{trading_date:'trading_date',close:'close'},quality_policy_version:'quality-v1',qualification_ref:'SYNTHETIC TEST ONLY'}),file:{name:'synthetic-ux.csv',mimeType:'text/csv',buffer:Buffer.from(csv)}}});expect(imported.status()).toBe(201);
+ const limits:string[]=[];page.on('request',r=>{if(r.url().includes('/history?'))limits.push(new URL(r.url()).searchParams.get('limit')||'');});
+ await page.goto('/');await expect(page.locator('.sidebar-note').getByText('Bullion Workspace',{exact:false})).toBeVisible();
+ await page.getByLabel('Local application token').fill(token);await page.getByRole('button',{name:/Open Bullion Workspace/}).click();
+ await expect(page.getByRole('heading',{name:'Bullion Data Workspace',exact:true})).toBeVisible();
+ await page.getByRole('combobox',{name:'ETF listing',exact:true}).selectOption(instrument.id);await page.getByRole('combobox',{name:'Data source',exact:true}).selectOption(source.id);
+ const viewport=page.getByRole('region',{name:'Historical observations',exact:true}),rows=viewport.locator('tbody tr');
+ await expect(rows).toHaveCount(15);
+ await page.getByRole('button',{name:'Load more observations',exact:true}).click();await expect(rows).toHaveCount(30);
+ await page.getByRole('button',{name:'Load more observations',exact:true}).click();await expect(rows).toHaveCount(45);
+ expect(limits.length).toBeGreaterThan(0);expect(limits.every(x=>x==='15')).toBe(true);
+ await expect(page.getByRole('button',{name:'Load more observations',exact:true})).toHaveCount(0);
+ await viewport.scrollIntoViewIfNeeded();
+ const geometry=await viewport.evaluate(node=>{node.scrollTop=node.scrollHeight;const header=node.querySelector('th')!;return{scrolls:node.scrollHeight>node.clientHeight,sticky:getComputedStyle(header).position,offset:header.getBoundingClientRect().top-node.getBoundingClientRect().top};});
+ expect(geometry.scrolls).toBe(true);expect(geometry.sticky).toBe('sticky');expect(Math.abs(geometry.offset)).toBeLessThan(3);
+ await expect(rows.last()).toContainText(days[44]);
+ await page.getByLabel('From',{exact:true}).fill(days[41]);await page.getByLabel('Through',{exact:true}).fill(days[44]);await page.getByRole('button',{name:'Apply range',exact:true}).click();await expect(rows).toHaveCount(4);
+ await page.setViewportSize({width:390,height:844});await viewport.scrollIntoViewIfNeeded();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+ expect(await viewport.evaluate(node=>node.clientWidth<=window.innerWidth)).toBe(true);
+});

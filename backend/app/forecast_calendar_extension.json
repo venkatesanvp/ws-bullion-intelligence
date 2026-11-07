@@ -1,0 +1,58 @@
+{
+  "version": "forecast-nse-2026-future-review1",
+  "reviewed_at": "2026-11-06T16:27:53.390937+00:00",
+  "coverage_start": "2026-11-07",
+  "coverage_end": "2026-12-31",
+  "session_dates": [
+    "2026-11-08",
+    "2026-11-09",
+    "2026-11-11",
+    "2026-11-12",
+    "2026-11-13",
+    "2026-11-16",
+    "2026-11-17",
+    "2026-11-18",
+    "2026-11-19",
+    "2026-11-20",
+    "2026-11-23",
+    "2026-11-25",
+    "2026-11-26",
+    "2026-11-27",
+    "2026-11-30",
+    "2026-12-01",
+    "2026-12-02",
+    "2026-12-03",
+    "2026-12-04",
+    "2026-12-07",
+    "2026-12-08",
+    "2026-12-09",
+    "2026-12-10",
+    "2026-12-11",
+    "2026-12-14",
+    "2026-12-15",
+    "2026-12-16",
+    "2026-12-17",
+    "2026-12-18",
+    "2026-12-21",
+    "2026-12-22",
+    "2026-12-23",
+    "2026-12-24",
+    "2026-12-28",
+    "2026-12-29",
+    "2026-12-30",
+    "2026-12-31"
+  ],
+  "unknown_close_sessions": [
+    "2026-11-08"
+  ],
+  "evidence": [
+    "https://nsearchives.nseindia.com/content/circulars/CMTR71775.pdf",
+    "https://www.nseindia.com/resources/exchange-communication-holidays",
+    "https://www.nseindia.com/static/market-data/market-timings"
+  ],
+  "limitations": [
+    "MUHURAT_SESSION_DATE_CONFIRMED_TIME_UNVERIFIED",
+    "NO_2027_CALENDAR_QUALIFIED",
+    "FUTURE_EXTENSION_ONLY_DOES_NOT_REWRITE_INGESTION_CALENDAR"
+  ]
+}

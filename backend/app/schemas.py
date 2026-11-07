@@ -74,9 +74,16 @@ class FreshnessProfile(Strict):
         return v
 
 
+class AcquisitionReview(Strict):
+    timestamp_policy: Literal["UNIX_SECONDS_IST_CANDIDATE_V1"]
+    allow_provisional_session_dates: bool = False
+    review_ref: str = Field(min_length=1, max_length=1000)
+
+
 class SourceProfile(Strict):
     data_class: Literal["REAL_MARKET", "SYNTHETIC_TEST"]
     policy_version: Literal["quality-v1"] = "quality-v1"
+    acquisition_review: AcquisitionReview | None = None
     calendar: CalendarProfile | None = None
     freshness: FreshnessProfile | None = None
     known_break_dates: list[date] = Field(default_factory=list, max_length=10_000)
@@ -85,8 +92,27 @@ class SourceProfile(Strict):
 
 class SourceCreate(Strict):
     label: str = Field(min_length=1, max_length=256)
-    contract_version: Literal["csv-v1"] = "csv-v1"
+    source_kind: Literal["USER_CSV", "DHANHQ"] = "USER_CSV"
+    contract_version: Literal["csv-v1", "dhan-daily-v1-provisional"] = "csv-v1"
     profile: SourceProfile
+
+    @model_validator(mode="after")
+    def matching_contract(self):
+        if (self.source_kind == "USER_CSV") != (self.contract_version == "csv-v1"):
+            raise ValueError("Source kind and contract must match")
+        return self
+
+
+class CanonicalImportMetadata(Strict):
+    instrument_id: UUID
+    source_id: UUID
+    interval: Literal["1d"] = "1d"
+    price_basis: Literal["PROVIDER_ADJUSTED"] = "PROVIDER_ADJUSTED"
+    quality_policy_version: Literal["quality-v1"] = "quality-v1"
+    qualification_ref: str = Field(min_length=1, max_length=1000)
+    plan_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    requested_start: date
+    requested_end: date
 
 
 class PermittedUses(Strict):

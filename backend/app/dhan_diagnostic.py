@@ -6,11 +6,9 @@ endpoint, token exchange, database, account mutation or app-startup hook.
 
 import argparse
 from collections.abc import Callable, Mapping
-from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 import hmac
 import json
-import logging
 from pathlib import Path
 import time
 
@@ -18,26 +16,13 @@ import httpx
 
 from .dhan_config import ConfigurationReadError, DhanConfiguration, load_dhan_configuration
 
+from .dhan_http import (
+    ERROR_CODES, TIMEOUT, _quiet_transport_logs, configuration_problem, live_transport,
+)
+
 PROFILE_URL = "https://api.dhan.co/v2/profile"
 MAX_RESPONSE_BYTES = 65_536
 BODY_BUDGET_SECONDS = 20.0
-TIMEOUT = httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=5.0)
-
-# Provider strings/messages are never returned; only these documented codes.
-ERROR_CODES = {
-    "807": "TOKEN_EXPIRED", "808": "INVALID_CREDENTIALS", "809": "INVALID_CREDENTIALS",
-    "810": "INVALID_CREDENTIALS", "806": "DATA_ENTITLEMENT_REQUIRED",
-    "805": "RATE_LIMITED", "800": "PROVIDER_SERVICE_ERROR",
-    "804": "PROVIDER_REQUEST_REJECTED", "811": "PROVIDER_REQUEST_REJECTED",
-    "812": "PROVIDER_REQUEST_REJECTED", "813": "PROVIDER_REQUEST_REJECTED",
-    "814": "PROVIDER_REQUEST_REJECTED", "DH-901": "AUTH_INVALID_OR_EXPIRED",
-    "DH-902": "ACCESS_OR_ENTITLEMENT_REQUIRED", "DH-903": "ACCOUNT_ACCESS_RESTRICTED",
-    "DH-904": "RATE_LIMITED", "DH-905": "PROVIDER_REQUEST_REJECTED",
-    "DH-907": "PROVIDER_REQUEST_REJECTED", "DH-908": "PROVIDER_SERVICE_ERROR",
-    "DH-909": "NETWORK_ERROR", "DH-910": "PROVIDER_ERROR",
-}
-
-
 @dataclass(frozen=True)
 class DiagnosticResult:
     status: str
@@ -60,16 +45,6 @@ class DiagnosticResult:
         if self.status in {"LIVE_APPROVAL_REQUIRED", "INVALID_ARGUMENTS"}:
             return 2
         return 1
-
-
-def configuration_problem(config: DhanConfiguration) -> str | None:
-    if not config.values_valid:
-        return "INVALID_CONFIGURATION"
-    if not config.enabled:
-        return "INTEGRATION_DISABLED"
-    if not config.runtime_configuration_complete or config.credentials is None:
-        return "MISSING_ACCESS_TOKEN"
-    return None
 
 
 def _json_object(body: bytes) -> dict | None:
@@ -142,22 +117,6 @@ def classify_response(
                       data_api_plan_reported_active=False)
     return result("PROFILE_AUTHENTICATED_DATA_PLAN_REPORTED_ACTIVE", authentication_succeeded=True,
                   data_api_plan_reported_active=True)
-
-
-@contextmanager
-def _quiet_transport_logs():
-    # This standalone CLI must not emit library wire/debug messages. No web-app hook.
-    previous = logging.root.manager.disable
-    logging.disable(logging.CRITICAL)
-    try:
-        yield
-    finally:
-        logging.disable(previous)
-
-
-def live_transport() -> httpx.HTTPTransport:
-    return httpx.HTTPTransport(verify=True, trust_env=False, retries=0,
-                               limits=httpx.Limits(max_connections=1, max_keepalive_connections=0))
 
 
 def run_profile_check(config: DhanConfiguration, *, transport: httpx.BaseTransport) -> DiagnosticResult:
