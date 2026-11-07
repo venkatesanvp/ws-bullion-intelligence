@@ -1,3 +1,4 @@
+import DataViewport, {DATA_PAGE_SIZE} from './DataViewport';
 import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMarketRefresh } from './useMarketRefresh';
 import ResearchDashboard from './ResearchDashboard';
@@ -27,17 +28,17 @@ export default function App() {
   return <div className="shell">
     <aside className="sidebar"><a className="brand" href="#main"><span className="brand-mark">Au<span>Ag</span></span><span>BULLION<br/><small>INTELLIGENCE</small></span></a>
       <div className="sidebar-caption">PERSONAL RESEARCH WORKSPACE</div>
-      <div className="sidebar-note"><span className="local-dot"/> Local workspace<br/><small>Historical data inspection · VS-01</small></div>
+      <div className="sidebar-note"><span className="local-dot"/> Bullion Workspace<br/><small>Historical data inspection · VS-01</small></div>
       <div className="sidebar-bottom">Evidence before interpretation.<p>Daily ETF observations, with their source and limitations kept in view.</p><Badge>Research only</Badge></div>
     </aside>
     <main id="main">
-      <header className="topbar"><span>GLOBAL BULLION / DATA WORKBENCH</span><div><Badge>LOCAL ONLY</Badge>{token && <button className="text-button" onClick={() => { setToken(''); setInput(''); }}>Lock workspace</button>}</div></header>
+      <header className="topbar"><span>GLOBAL BULLION / DATA WORKSPACE</span><div><Badge>LOCAL ONLY</Badge>{token && <button className="text-button" onClick={() => { setToken(''); setInput(''); }}>Lock Bullion Workspace</button>}</div></header>
       {!token ? <section className="login"><div className="eyebrow">CONTROLLED DATA FOUNDATION</div><h1>Your research starts<br/>with trusted inputs.</h1><p className="lede">Inspect Indian Gold and Silver ETF history. Keep source qualification, import evidence and data limitations together.</p>
-        <form className="card login-card" onSubmit={connect}><h2>Unlock local workspace</h2><p>Use LOCAL_APP_TOKEN from your local .env file. The token stays in memory and is cleared when this page closes.</p>
+        <form className="card login-card" onSubmit={connect}><h2>Unlock Bullion Workspace</h2><p>Use LOCAL_APP_TOKEN from your local .env file. The token stays in memory and is cleared when this page closes.</p>
           <Field label="Local application token"><input autoComplete="off" type="password" required value={input} onChange={e => setInput(e.target.value)}/></Field>
           {error && <div role="alert" className="notice error">{error}</div>}
-          <button className="primary" disabled={connecting}>{connecting ? 'Checking connection…' : 'Open workspace →'}</button>
-        </form><p className="footnote">No live prices or broker connection. Market data must be qualified before import.</p></section>
+          <button className="primary" disabled={connecting}>{connecting ? 'Checking connection…' : 'Open Bullion Workspace →'}</button>
+        </form><p className="footnote">Read-only bullion research. Provider credentials remain on the backend; source qualification stays visible.</p></section>
       : <Workbench token={token}/>}
     </main>
   </div>;
@@ -74,7 +75,7 @@ function Workbench({ token }: { token: string }) {
     if (source) setBasis(source.source_kind === 'DHANHQ' ? 'PROVIDER_ADJUSTED' : 'RAW_CLOSE');
   }, [sourceId, source?.source_kind]);
   return <div className="workspace">
-    <div className="page-heading"><div><div className="eyebrow">MARKET DATA · FOUNDATION</div><h1>Data workbench</h1><p>Gold & silver ETF history, with evidence attached.</p></div><div className="workspace-count"><strong>{instruments.length}</strong><span>configured listings</span></div></div>
+    <div className="page-heading"><div><div className="eyebrow">MARKET DATA · FOUNDATION</div><h1>Bullion Data Workspace</h1><p>Gold & silver ETF history, with evidence attached.</p></div><div className="workspace-count"><strong>{instruments.length}</strong><span>configured listings</span></div></div>
     <div className="scope-note"><span className="scope-icon">i</span>Descriptive ETF research with source, timestamps and freshness.</div>
     <nav className="tabs" aria-label="Workspace views">{tabs.map(t => <button key={t} aria-current={tab === t ? 'page' : undefined} onClick={() => setTab(t)}>{t}</button>)}</nav>
     {error && <div role="alert" className="notice error">{error}<button className="text-button" onClick={() => { setError(''); refresh().catch(e => setError(describe(e))); }}>Retry connection</button></div>}
@@ -112,7 +113,7 @@ function History({ api, instrument, source, basis }: { api: Call; instrument?: I
     controller.current?.abort(); const abort = new AbortController(); controller.current = abort;
     const identity = ++query.current; setLoading(true); setError('');
     if (!cursor) { setNext(null); setAcquisition(''); }
-    const params = new URLSearchParams({ source_id: source.id, basis, limit: '100' });
+    const params = new URLSearchParams({ source_id: source.id, basis, limit: String(DATA_PAGE_SIZE) });
     if (rangeStart) params.set('start', rangeStart); if (rangeEnd) params.set('end', rangeEnd);
     if (assessment) params.set('assessment_as_of', assessment); if (cursor) params.set('cursor', cursor);
     try {
@@ -169,7 +170,7 @@ function History({ api, instrument, source, basis }: { api: Call; instrument?: I
           ? <>This DhanHQ source provides Provider adjusted prices. Select Provider adjusted under Price basis to view its loaded history.</>
           : meta.coverage.dataset_count > 0
             ? <>No observations in the applied range. Loaded history is {meta.coverage.dataset_first_date} through {meta.coverage.dataset_last_date}. {hasLiveRetrieval(source) ? 'Unavailable sessions are shown in the retrieval status above; no prices are filled.' : 'Apply range filters this loaded history; it does not download newer data.'}</>
-            : <>No loaded history for this ETF, source and price basis. {hasLiveRetrieval(source) ? 'Apply a range to request missing history; see retrieval status for availability.' : 'Applying a range does not download market data.'}</>}</Empty> : <div className="table-wrap"><table><thead><tr><th>Trading date</th><th className="numeric">Close · INR</th><th>Open / High / Low</th><th className="numeric">Volume</th><th>Publication / ingestion evidence</th><th>Provenance</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td>{row.trading_date}</td><td className="numeric price">{row.close}</td><td>{row.open ?? '—'} / {row.high ?? '—'} / {row.low ?? '—'}</td><td className="numeric">{row.volume === null ? 'Unknown' : Number.isSafeInteger(row.volume) ? row.volume : 'Unavailable: integer precision'}</td><td><span>Published: {stamp(row.provider_published_at)}</span><small>Ingested: {stamp(row.ingested_at)}</small><small>Event: {stamp(row.event_time)} · {row.event_precision}</small></td><td><code title={row.batch_id}>{row.batch_id.slice(0, 8)}…</code><small>CSV row {row.row_number}</small></td></tr>)}</tbody></table></div>}
+            : <>No loaded history for this ETF, source and price basis. {hasLiveRetrieval(source) ? 'Apply a range to request missing history; see retrieval status for availability.' : 'Applying a range does not download market data.'}</>}</Empty> : <DataViewport className="table-wrap" label="Historical observations"><table><caption>Historical OHLCV observations</caption><thead><tr><th>Trading date</th><th className="numeric">Close · INR</th><th>Open / High / Low</th><th className="numeric">Volume</th><th>Publication / ingestion evidence</th><th>Provenance</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td>{row.trading_date}</td><td className="numeric price">{row.close}</td><td>{row.open ?? '—'} / {row.high ?? '—'} / {row.low ?? '—'}</td><td className="numeric">{row.volume === null ? 'Unknown' : Number.isSafeInteger(row.volume) ? row.volume : 'Unavailable: integer precision'}</td><td><span>Published: {stamp(row.provider_published_at)}</span><small>Ingested: {stamp(row.ingested_at)}</small><small>Event: {stamp(row.event_time)} · {row.event_precision}</small></td><td><code title={row.batch_id}>{row.batch_id.slice(0, 8)}…</code><small>CSV row {row.row_number}</small></td></tr>)}</tbody></table></DataViewport>}
         {next && <button disabled={loading} onClick={() => void load(next, appliedRange.start, appliedRange.end, appliedRange.assessment)}>Load more observations</button>}
       </section>
     </>}
@@ -198,7 +199,7 @@ function Catalog({ instruments, watchlists, mutate, busy }: { instruments: Instr
       <Field label="ISIN (optional)"><input name="isin" maxLength={12}/></Field><div className="form-action"><button className="primary" disabled={busy}>Add listing</button></div>
     </form>
     <Field label="Filter configured listings"><select value={metal} onChange={e => setMetal(e.target.value)}><option value="ALL">All metals</option><option>GOLD</option><option>SILVER</option></select></Field>
-    <div className="item-list">{instruments.filter(i => metal === 'ALL' || i.metal === metal).map(i => <div className="list-item" key={i.id}><div><strong>{i.symbol}</strong><small>{i.exchange} · {i.metal} · {i.name}</small></div><button disabled={busy} onClick={() => void mutate('/instruments/' + i.id, { active: !i.active }, 'PATCH').catch(() => {})}>{i.active ? 'Mark inactive' : 'Reactivate'}</button></div>)}</div>
+    <DataViewport className="item-list" label="Configured ETF listings">{instruments.filter(i => metal === 'ALL' || i.metal === metal).map(i => <div data-viewport-row className="list-item" key={i.id}><div><strong>{i.symbol}</strong><small>{i.exchange} · {i.metal} · {i.name}</small></div><button disabled={busy} onClick={() => void mutate('/instruments/' + i.id, { active: !i.active }, 'PATCH').catch(() => {})}>{i.active ? 'Mark inactive' : 'Reactivate'}</button></div>)}</DataViewport>
     {!instruments.length && <Empty>No listings configured.</Empty>}
     {notice && <p role="status">{notice}</p>}
   </section><section className="card"><div className="eyebrow">PERSONAL ORGANIZATION</div><h2>Watchlists</h2><form onSubmit={e => void submit(e, 'watchlist')} className="inline-form"><Field label="New watchlist name"><input name="name" required maxLength={256}/></Field><button disabled={busy}>Create</button></form>
@@ -206,8 +207,8 @@ function Catalog({ instruments, watchlists, mutate, busy }: { instruments: Instr
       <Field label="Watchlist"><select required value={watchId} onChange={e => setWatchId(e.target.value)}><option value="">Select watchlist</option>{watchlists.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></Field>
       <Field label="Listing to add"><select required value={member} onChange={e => setMember(e.target.value)}><option value="">Select listing</option>{instruments.map(i => <option key={i.id} value={i.id}>{i.symbol} · {i.exchange}</option>)}</select></Field><button disabled={busy}>Add to watchlist</button>
     </form>
-    {watchlists.map(w => <div className="watchlist" key={w.id}><form className="inline-form" onSubmit={e => { e.preventDefault(); const data = new FormData(e.currentTarget); void mutate('/watchlists/' + w.id, { name: data.get('name') }, 'PATCH').catch(() => {}); }}><Field label="Watchlist name"><input name="name" defaultValue={w.name} required maxLength={256}/></Field><button disabled={busy}>Rename</button></form>
-      {w.members.map(i => <div className="list-item" key={i.id}><div><strong>{i.symbol}</strong><small>{i.exchange} · {i.metal}</small></div><button className="text-button" disabled={busy} onClick={() => void mutate('/watchlists/' + w.id + '/members/' + i.id, undefined, 'DELETE').catch(() => {})}>Remove</button></div>)}{!w.members.length && <p className="muted">No members yet.</p>}</div>)}
+    <DataViewport label="Watchlists">{watchlists.map(w => <div data-viewport-row className="watchlist" key={w.id}><form className="inline-form" onSubmit={e => { e.preventDefault(); const data = new FormData(e.currentTarget); void mutate('/watchlists/' + w.id, { name: data.get('name') }, 'PATCH').catch(() => {}); }}><Field label="Watchlist name"><input name="name" defaultValue={w.name} required maxLength={256}/></Field><button disabled={busy}>Rename</button></form>
+      <DataViewport label={"Members of " + w.name}>{w.members.map(i => <div data-viewport-row className="list-item" key={i.id}><div><strong>{i.symbol}</strong><small>{i.exchange} · {i.metal}</small></div><button className="text-button" disabled={busy} onClick={() => void mutate('/watchlists/' + w.id + '/members/' + i.id, undefined, 'DELETE').catch(() => {})}>Remove</button></div>)}</DataViewport>{!w.members.length && <p className="muted">No members yet.</p>}</div>)}</DataViewport>
     {!watchlists.length && <Empty>Create a watchlist to group listings.</Empty>}
   </section></div>;
 }
@@ -230,7 +231,7 @@ function Sources({ sources, mutate, busy }: { sources: Source[]; mutate: Mutate;
   }
   return <div className="two-column"><section className="card"><div className="eyebrow">EXPLICIT SOURCE CONTRACT</div><h2>Register a data source</h2><p>Registration starts unverified. Record evidence before prices can be imported or displayed.</p>
     <form onSubmit={e => void create(e)}><Field label="Source label"><input name="label" required maxLength={256}/></Field><Field label="Source type"><select name="source_kind"><option value="USER_CSV">CSV file import</option><option value="DHANHQ">DhanHQ historical data</option></select></Field><Field label="Data classification"><select name="data_class"><option value="REAL_MARKET">Real market data</option><option value="SYNTHETIC_TEST">Synthetic test data · visibly labeled</option></select></Field><button className="primary" disabled={busy}>Register source</button></form>
-    <div className="item-list">{sources.map(s => <button className={'source-item ' + (sourceId === s.id ? 'selected' : '')} key={s.id} onClick={() => setSourceId(s.id)}><strong>{s.label}</strong><small>{s.profile.data_class} · {s.qualification}</small></button>)}</div>
+    <DataViewport className="item-list" label="Registered data sources">{sources.map(s => <button data-viewport-row className={'source-item ' + (sourceId === s.id ? 'selected' : '')} key={s.id} onClick={() => setSourceId(s.id)}><strong>{s.label}</strong><small>{s.profile.data_class} · {s.qualification}</small></button>)}</DataViewport>
   </section><section className="card"><div className="eyebrow">OWNER-RECORDED EVIDENCE</div><h2>Qualification & quality profile</h2>
     <div className="notice">Qualification records your review. It does not verify a license, ETF sample or market prices independently.</div>
     {!selected ? <Empty>Select a registered source to review its permissions.</Empty> : <form key={selected.id + selected.reviewed_at} onSubmit={e => void qualify(e)}>
@@ -253,7 +254,7 @@ function Imports({ api, instrument, source, basis, refreshed }: { api: Call; ins
   const [batches, setBatches] = useState<Batch[]>([]); const [next, setNext] = useState<string | null>(null);
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   useEffect(() => { setKey(crypto.randomUUID()); setBatch(null); setIssues([]); }, [file, mapping, instrument?.id, source?.id, source?.rights_evidence_ref, source?.profile.policy_version, basis]);
-  const filters = useMemo(() => new URLSearchParams({ ...(instrument ? { instrument_id: instrument.id } : {}), ...(source ? { source_id: source.id } : {}) }).toString(), [instrument, source]);
+  const filters = useMemo(() => new URLSearchParams({ limit: String(DATA_PAGE_SIZE), ...(instrument ? { instrument_id: instrument.id } : {}), ...(source ? { source_id: source.id } : {}) }).toString(), [instrument, source]);
   const generation = useRef(0);
   const list = useCallback(async (cursor?: string) => {
     const current = ++generation.current;
@@ -297,8 +298,8 @@ function Imports({ api, instrument, source, basis, refreshed }: { api: Call; ins
       <div className="batch-counts"><div><strong>{batch.new_count}</strong><span>new observations</span></div><div><strong>{batch.duplicate_count}</strong><span>exact duplicates</span></div><div><strong>{batch.error_count}</strong><span>validation errors</span></div></div>
       <p className="footnote">Input rows: {batch.row_count}. {batch.status === 'REJECTED' ? 'No new observations were stored.' : 'Existing observations were preserved.'}</p>
       <details><summary>Audit identity & source snapshot</summary><pre>{JSON.stringify({ batch_id: batch.id, request_key: batch.request_key, file_sha256: batch.file_sha256, profile_sha256: batch.profile_sha256, profile_snapshot: batch.profile_snapshot }, null, 2)}</pre></details>
-      <div className="issues">{issues.map(issue => <div className="issue" key={issue.id}><Badge tone={issue.severity === 'ERROR' ? 'warning' : ''}>{issue.severity}</Badge><span>{issue.code}<small>{issue.row_number ? 'CSV data row ' + issue.row_number : 'File / source'} {json(issue.details)}</small></span></div>)}</div>
+      <DataViewport className="issues" label="Import validation issues">{issues.map(issue => <div data-viewport-row className="issue" key={issue.id}><Badge tone={issue.severity === 'ERROR' ? 'warning' : ''}>{issue.severity}</Badge><span>{issue.code}<small>{issue.row_number ? 'CSV data row ' + issue.row_number : 'File / source'} {json(issue.details)}</small></span></div>)}</DataViewport>
       {batch.error_count > 1000 && <p className="notice">Diagnostics are capped at 1,000; total error count is retained.</p>}
     </>}
-  </section><section className="card batch-history"><h3>Recorded batches</h3>{batches.map(b => <button key={b.id} className="source-item" onClick={() => void show(b).catch(e => setError(describe(e)))}><strong>{b.status} · {b.new_count} new · {b.error_count} errors</strong><small>{stamp(b.submitted_at)} · {b.data_class}</small><code>{b.request_key}</code></button>)}{!batches.length && <Empty>No recorded batches for this selection.</Empty>}{next && <button disabled={busy} onClick={() => void list(next).catch(e => setError(describe(e)))}>Load more batches</button>}</section></div></div>;
+  </section><section className="card batch-history"><h3>Recorded batches</h3><DataViewport label="Recorded import batches">{batches.map(b => <button data-viewport-row key={b.id} className="source-item" onClick={() => void show(b).catch(e => setError(describe(e)))}><strong>{b.status} · {b.new_count} new · {b.error_count} errors</strong><small>{stamp(b.submitted_at)} · {b.data_class}</small><code>{b.request_key}</code></button>)}</DataViewport>{!batches.length && <Empty>No recorded batches for this selection.</Empty>}{next && <button disabled={busy} onClick={() => void list(next).catch(e => setError(describe(e)))}>Load more batches</button>}</section></div></div>;
 }

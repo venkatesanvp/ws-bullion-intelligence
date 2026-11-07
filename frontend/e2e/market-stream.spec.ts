@@ -7,7 +7,7 @@ test('synthetic binary feed reaches authenticated browser SSE and reconciliation
  const item=session.instruments.find((i:{symbol:string})=>i.symbol==='TATAGOLD');
  // Select the synthetic backend for every local browser API call, including SSE.
  await page.addInitScript(()=>{const original=window.fetch.bind(window);window.fetch=(input,init)=>original(typeof input==='string'?input.replace('127.0.0.1:8001/','127.0.0.1:8002/'):input,init);});
- await page.goto('/');await page.getByLabel('Local application token').fill(token);await page.getByRole('button',{name:/Open workspace/}).click();
+ await page.goto('/');await page.getByLabel('Local application token').fill(token);await page.getByRole('button',{name:/Open Bullion Workspace/}).click();
  await page.getByRole('combobox',{name:'ETF listing',exact:true}).selectOption(item.instrument_id);
  await page.getByRole('combobox',{name:'Data source',exact:true}).selectOption(session.source_id);
  await page.getByRole('combobox',{name:'Price basis',exact:true}).selectOption('PROVIDER_ADJUSTED');

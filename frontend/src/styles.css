@@ -8,3 +8,27 @@
 .research-dashboard{display:grid;gap:18px;min-width:0}.research-dashboard>.card{min-width:0}.research-figure{margin:0;min-width:0;width:100%}.research-plot{width:100%;min-width:0;min-height:280px}.research-figure figcaption{color:#657567;font-size:12px;line-height:1.6;margin-top:10px}.research-quality{border:1px solid #dfe4dc;border-left:3px solid #ad8b3b;border-radius:7px;background:#fafbf7;padding:18px}.research-quality p:last-child{margin-bottom:0}.indicator-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.indicator-controls .check{margin-bottom:10px}.comparison-selections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.comparison-selections fieldset{min-width:0}.research-dashboard select,.research-dashboard input{max-width:100%;min-width:0}.research-dashboard .range-bar{margin-top:14px}.research-dashboard table caption{text-align:left;color:#657567;font-size:12px;padding:12px 0}.research-dashboard code{overflow-wrap:anywhere}.tabs{flex-wrap:wrap}.research-dashboard .notice{overflow-wrap:anywhere}@media(max-width:760px){.indicator-controls,.comparison-selections{grid-template-columns:1fr}.research-plot{min-height:260px}.research-dashboard .card{padding:16px}.research-dashboard .range-bar{display:grid;grid-template-columns:1fr}.research-dashboard .range-bar .field{width:100%}}
 
 .quote-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:16px}.quote-card{padding:18px;border:1px solid #dce4d8;border-radius:10px;background:#fbfcf8}.quote-price{font-size:1.55rem;font-variant-numeric:tabular-nums}.quote-fields{display:grid;gap:8px}.quote-fields div{display:flex;justify-content:space-between;gap:12px}.quote-fields dt{color:#566b60}.quote-fields dd{text-align:right;margin:0;overflow-wrap:anywhere}.intraday-chart svg{width:100%;height:auto;min-height:180px}.intraday-chart{overflow-x:auto}.market-snapshot .quote-card h3{margin-bottom:4px}
+
+/* Package 1: shared measured fifteen-row viewport; exact data stays available. */
+.data-viewport{inline-size:100%;min-inline-size:0;max-height:var(--data-viewport-height,54rem);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.data-viewport:focus-visible{outline:3px solid #ad8b3b;outline-offset:3px}
+.data-viewport table{white-space:normal}
+.data-viewport th,.data-viewport td{overflow-wrap:anywhere;min-width:5rem}
+.data-viewport thead th{position:sticky;inset-block-start:0;z-index:2;background:#f7f9f3}
+.data-viewport .numeric,.data-viewport .price{white-space:nowrap}
+.data-viewport caption{text-align:left;padding:12px 17px;color:#657567;font-size:12px}
+.data-viewport .list-item,.data-viewport .source-item,.data-viewport .issue{overflow-wrap:anywhere;min-inline-size:0}
+.data-viewport .list-item>div{min-inline-size:0}.data-viewport .list-item>button{flex-shrink:0}
+.two-column>*{min-width:0}.page-heading h1{overflow-wrap:anywhere}
+@media(max-width:720px){.data-viewport{max-height:min(var(--data-viewport-height,54rem),75dvh)}.data-viewport th,.data-viewport td{padding:12px 10px}.page-heading{align-items:flex-start}.page-heading h1{font-size:28px}}
+
+/* Package 2 local technical workbench and bounded chart parity spike. */
+.technical-parameters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.technical-workbench{min-width:0}.technical-workbench a{text-decoration:underline}.lightweight-canvas{width:100%;min-width:0;height:800px}.lightweight-research figcaption{overflow-wrap:anywhere}@media(max-width:760px){.technical-parameters{grid-template-columns:repeat(2,minmax(0,1fr))}.lightweight-canvas{height:800px}}
+
+.forecast-research{display:grid;gap:1rem;min-width:0}.forecast-research code{overflow-wrap:anywhere}.forecast-research .range-bar{align-items:end}.forecast-research fieldset{margin-block:1rem}.forecast-research .check{display:inline-flex;margin-inline-end:1.1rem;gap:.4rem;align-items:center}
+
+.forecast-research .footnote,.forecast-research .notice{overflow-wrap:anywhere}
+
+.forecast-research{grid-template-columns:minmax(0,1fr);overflow-wrap:anywhere}.forecast-research>.card{min-width:0}.forecast-research input,.forecast-research select{max-width:100%;min-width:0}
+
+.forecast-performance{min-width:0;overflow-wrap:anywhere}.forecast-performance>details{min-width:0}.forecast-performance h4{margin-block:1.5rem .5rem}

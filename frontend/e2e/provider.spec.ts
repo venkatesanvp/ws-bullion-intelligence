@@ -19,7 +19,7 @@ test('synthetic one-year provider import feeds charts indicators and both metal 
   });
   await page.goto('/');
   await page.getByLabel('Local application token').fill(process.env.TEST_APP_TOKEN);
-  await page.getByRole('button', { name: /Open workspace/ }).click();
+  await page.getByRole('button', { name: /Open Bullion Workspace/ }).click();
   await page.getByRole('button', { name: 'Research dashboard', exact: true }).click();
   await page.getByLabel('ETF listing').selectOption(seeded.instruments[0].id);
   await page.getByLabel('Data source').selectOption(seeded.source_id);

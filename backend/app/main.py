@@ -99,7 +99,12 @@ def get_db(request: Request):
             503, "DEPENDENCY_NOT_READY", "Database is unavailable or migrations are required."
         )
     with engine.connect() as conn:
-        if request.method == "GET" or request.url.path == "/api/v1/comparisons":
+        if request.method == "GET" or request.url.path in {
+            "/api/v1/comparisons",
+            "/api/v1/research/technical",
+            "/api/v1/research/forecasts/run",
+            "/api/v1/research/forecasts/evaluate",
+        }:
             conn = conn.execution_options(isolation_level="REPEATABLE READ")
         with Session(bind=conn, expire_on_commit=False) as db:
             db.info["transient_research"] = request.app.state.transient_research.snapshot()
@@ -763,6 +768,14 @@ def create_app(
 
     register_handoff(router, response)
     register_research(router, get_db, response)
+    from .technical_research import register_technical_research
+
+    register_technical_research(router, get_db, response)
+    from .forecast_research_service import ForecastResearchService
+    from .forecast_research_routes import register_forecast_research
+
+    app.state.forecast_research = ForecastResearchService(app.state.market_data)
+    register_forecast_research(router, get_db, response)
     app.include_router(router)
     return app
 

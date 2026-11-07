@@ -11,7 +11,7 @@ test('synthetic quotes, automatic refresh, intraday candles and timeframe indica
     const response=await route.fetch({url:route.request().url().replace(':8001/',':8002/')});
     await route.fulfill({response});
   });
-  await page.goto('/');await page.getByLabel('Local application token').fill(token);await page.getByRole('button',{name:/Open workspace/}).click();
+  await page.goto('/');await page.getByLabel('Local application token').fill(token);await page.getByRole('button',{name:/Open Bullion Workspace/}).click();
   await page.getByRole('combobox',{name:'ETF listing',exact:true}).selectOption(instrument.instrument_id);
   await page.getByRole('combobox',{name:'Data source',exact:true}).selectOption(session.source_id);
   await page.getByRole('combobox',{name:'Price basis',exact:true}).selectOption('PROVIDER_ADJUSTED');

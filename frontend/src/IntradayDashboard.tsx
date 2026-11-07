@@ -1,3 +1,4 @@
+import DataViewport, {DATA_PAGE_SIZE} from './DataViewport';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Call, exchangeTime, Instrument, IntradayResult, marketProblem, SessionPolicy } from './api';
 import IntradayChart from './IntradayChart';
@@ -5,7 +6,7 @@ import IntradayChart from './IntradayChart';
 type Draft={interval:number;preset:string;start:string;end:string;SMA:boolean;EMA:boolean;RSI:boolean;smaN:string;emaN:string;rsiN:string};
 const initial:Draft={interval:5,preset:'current',start:'',end:'',SMA:true,EMA:false,RSI:false,smaN:'20',emaN:'37',rsiN:'14'};
 export default function IntradayDashboard({api,instrument,synthetic=false}:{api:Call;instrument:Instrument;synthetic?:boolean}){
-  const [draft,setDraft]=useState(initial),[loaded,setLoaded]=useState<IntradayResult|null>(null),[busy,setBusy]=useState(false),[problem,setProblem]=useState(''),[shown,setShown]=useState(100);
+  const [draft,setDraft]=useState(initial),[loaded,setLoaded]=useState<IntradayResult|null>(null),[busy,setBusy]=useState(false),[problem,setProblem]=useState(''),[shown,setShown]=useState(DATA_PAGE_SIZE);
   const generation=useRef(0),abort=useRef<AbortController|null>(null),inFlight=useRef(false),applied=useRef<Draft>(initial);
   const load=useCallback(async(settings:Draft,refresh=false)=>{
     const current=++generation.current;abort.current?.abort();const controller=new AbortController();abort.current=controller;
@@ -19,7 +20,7 @@ export default function IntradayDashboard({api,instrument,synthetic=false}:{api:
       const response=await api<IntradayResult>('/market-data/intraday',{method:'POST',signal:controller.signal,body:JSON.stringify({instrument_id:instrument.id,interval:settings.interval,preset:settings.preset,start:settings.start||null,end:settings.end||null,indicators,refresh})});
       if(current!==generation.current||controller.signal.aborted)return;
       setProblem(marketProblem(response.data.error));
-      if(response.data.candles.length||!response.data.error){setLoaded(response.data);applied.current={...settings};setShown(100);}
+      if(response.data.candles.length||!response.data.error){setLoaded(response.data);applied.current={...settings};setShown(DATA_PAGE_SIZE);}
     }catch(error){if(current===generation.current&&!controller.signal.aborted)setProblem(error instanceof Error?error.message:'Intraday data unavailable.');}
     finally{if(current===generation.current){setBusy(false);inFlight.current=false;}}
   },[api,instrument.id]);
@@ -53,8 +54,8 @@ export default function IntradayDashboard({api,instrument,synthetic=false}:{api:
       {!loaded.candles.length?<p className="empty">No intraday observations are currently available. This does not establish a holiday or guarantee provider availability.</p>:<IntradayChart result={loaded}/>}
       {loaded.provisional_session&&<section className="notice warning"><h3>{loaded.provisional_session.classification}</h3><p>{loaded.provisional_session.session_date}: O {loaded.provisional_session.open} | H {loaded.provisional_session.high} | L {loaded.provisional_session.low} | latest observed C {loaded.provisional_session.close} | volume {loaded.provisional_session.volume}</p><p>{loaded.provisional_session.coverage}. This is not the official finalized daily candle.</p></section>}
       <details><summary>Intraday data quality and interpretation</summary><p>{loaded.warnings.join('; ')}</p><p>Provider: {loaded.source}. Revision: {loaded.revision}. Adjustment basis unqualified; no total-return or replay claim. Data lives in bounded backend memory and is lost on restart.</p></details>
-      <div className="table-wrap"><table><caption>Exact {loaded.interval_minutes}-minute OHLCV and indicator values</caption><thead><tr><th>Candle start / end (IST)</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th>{Object.entries(loaded.indicators).map(([m,v])=><th key={m}>{m} {v.n} / {v.timeframe}</th>)}<th>Classification</th></tr></thead><tbody>{loaded.candles.slice(0,shown).map(row=><tr key={row.start}><td>{exchangeTime(row.start)}<small>{exchangeTime(row.end)}</small></td><td>{row.open}</td><td>{row.high}</td><td>{row.low}</td><td>{row.close}</td><td>{row.volume}</td>{Object.entries(loaded.indicators).map(([m,v])=>{const value=v.values.find(x=>x.candle_start===row.start);return <td key={m}>{value?.value??('Unavailable: '+(value?.reason||'PROVISIONAL_OR_WARMUP'))}</td>;})}<td>{row.classification}</td></tr>)}</tbody></table></div>
-      {shown<loaded.candles.length&&<button onClick={()=>setShown(n=>n+100)}>Show more intraday rows</button>}
+      <DataViewport className="table-wrap" label="Intraday observations"><table><caption>Exact {loaded.interval_minutes}-minute OHLCV and indicator values</caption><thead><tr><th>Candle start / end (IST)</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th>{Object.entries(loaded.indicators).map(([m,v])=><th key={m}>{m} {v.n} / {v.timeframe}</th>)}<th>Classification</th></tr></thead><tbody>{loaded.candles.slice(0,shown).map(row=><tr key={row.start}><td>{exchangeTime(row.start)}<small>{exchangeTime(row.end)}</small></td><td>{row.open}</td><td>{row.high}</td><td>{row.low}</td><td>{row.close}</td><td>{row.volume}</td>{Object.entries(loaded.indicators).map(([m,v])=>{const value=v.values.find(x=>x.candle_start===row.start);return <td key={m}>{value?.value??('Unavailable: '+(value?.reason||'PROVISIONAL_OR_WARMUP'))}</td>;})}<td>{row.classification}</td></tr>)}</tbody></table></DataViewport>
+      {shown<loaded.candles.length&&<button onClick={()=>setShown(n=>n+DATA_PAGE_SIZE)}>Show more intraday rows</button>}
     </>}
   </section>;
 }

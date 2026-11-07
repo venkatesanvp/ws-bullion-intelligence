@@ -1,8 +1,10 @@
 # Bullion Intelligence - VS-01 research workbench
 
-Local Gold/Silver ETF research: configurable listings/watchlists, qualified CSV ingestion, exact PostgreSQL history/provenance, quality inspection, price charts, SMA/EMA/Wilder RSI and common-date price-only comparisons. The approved software scope is implemented and verified with labeled synthetic fixtures. **Full VS-01/R1 acceptance remains incomplete.**
+Local Gold/Silver ETF research with source/provenance inspection, exact Decimal technical analytics, charts and comparisons, and transient baseline forecasting/performance intelligence. **Packages 1-6 are implemented; owner UAT, full source qualification, statistical validation, retention rights and VS-01 acceptance remain open.** No autonomous trading or new ML model is included.
 
-[Current implementation status](docs/04-planning/VS-01_IMPLEMENTATION_STATUS.md) | [Step 4 completion and proposed checkpoint](docs/04-planning/VS-01_STEP4_COMPLETION.md) | [Requirements baseline](docs/01-requirements/REQUIREMENTS_BASELINE.md)
+[Package 6 implementation, verification and UAT](docs/04-planning/FORECASTING_PACKAGE_6_CHECKPOINT.md) | [Four-ETF qualification](docs/04-planning/FORECASTING_PACKAGE_5_QUALIFICATION.md) | [Forward-evaluation readiness](docs/04-planning/FORECASTING_PACKAGE_6_FORWARD_READINESS.md) | [Requirements baseline](docs/01-requirements/REQUIREMENTS_BASELINE.md)
+
+Research Dashboard includes Daily, Intraday, Technical Analytics and Forecasting Research. B01/B02 provide price endpoints; B03 provides volatility only. Historical modes remain separate: strict point in time, explicit acknowledged conditional replay and labeled synthetic verification. Scorecards compare B01/B02 only on matched eligible origins, disclose overlapping/disjoint windows and do not estimate independent evidence or declare a winning model. Regime analysis is optional and uses fixed cutoff-context rules. Results/registries are bounded process memory, lost on restart/expiry.
 
 ## Local startup
 
@@ -15,13 +17,15 @@ docker compose up --build -d --wait
 
 The configuration script generates local secrets and refuses to overwrite an existing `.env`. Open that ignored file locally, copy `LOCAL_APP_TOKEN` into the access gate, then close the file. UI: http://127.0.0.1:5173. API liveness: http://127.0.0.1:8000/api/v1/health/live. Readiness/data APIs require the bearer token; mutating requests also require the configured local Origin. The token stays in memory and clears on reload/lock; it is absent from the frontend build.
 
-UI/API ports publish only to loopback; the application DB has no host port. Alembic revision `0001_market_workbench` runs before API startup. `docker compose stop` preserves the named application volume. Never delete/reset that volume for tests. If Docker is not on PATH, use `& 'C:\Program Files\Docker\Docker\resources\bin\docker.exe'`.
+UI/API ports publish only to loopback; the application DB has no host port. Alembic upgrades to the reviewed migration head before API startup. `docker compose stop` preserves the named application volume. Never delete/reset that volume for tests. If Docker is not on PATH, use `& 'C:\Program Files\Docker\Docker\resources\bin\docker.exe'`.
 
-## Optional DhanHQ credential preparation
+## Backend-only DhanHQ market data
 
-DhanHQ market-data configuration is disabled by default. Enter its developer application name/key/secret and any optional runtime client ID/token only in the ignored root `.env`; see [backend-only loading, offline validation and token rotation](docs/05-operations/DHANHQ_LOCAL_CONFIGURATION.md). The configuration checker stays offline. A separate [dual-gated read-only profile diagnostic](docs/05-operations/DHANHQ_READ_ONLY_DIAGNOSTIC.md) is implemented and tested with mocked HTTP only; live use requires explicit owner approval. Historical download, token exchange and trading are not implemented. Missing optional credentials do not block the existing workbench.
+Provider credentials belong only in the ignored root `.env`; see [configuration and rotation](docs/05-operations/DHANHQ_LOCAL_CONFIGURATION.md). Missing optional credentials do not prevent normal startup. Configuration validation is offline; credentials never belong in frontend assets, URLs, logs, source control or PostgreSQL. Existing credential/market-data flags remain disabled by default; any configured owner-authorized live acquisition follows the [operating policy](docs/05-operations/MARKET_DATA_OPERATING_POLICY.md).
 
-The later [four-primary-ETF historical diagnostic](docs/05-operations/DHANHQ_HISTORICAL_DIAGNOSTIC.md) is implemented for offline mocked verification. Its default invocation makes no request. Live historical use needs separate owner authorization and source-permission review; no prices are stored or imported.
+Existing read-only provider capabilities include bounded on-demand daily history, quotes, intraday candles and streaming/reconciliation under their approved gates. Forecast/performance APIs read existing canonical observations and do not acquire data. The original [profile](docs/05-operations/DHANHQ_READ_ONLY_DIAGNOSTIC.md) and [historical](docs/05-operations/DHANHQ_HISTORICAL_DIAGNOSTIC.md) diagnostics have separate explicit live-authorization controls. No automatic token exchange, account/holdings/balance access, order placement or automated trading is introduced by Packages 1-6.
+
+The current real research cache is transient and source-qualified only conditionally; historical publication/finality, adjustments/revisions and persistence/redistribution permissions remain unresolved. Do not recreate the active API merely to run tests: it loses the RAM cache and forward-tracking state. Any necessary deployment must preserve permitted data through the reviewed RAM-only handoff, never an unapproved price-history file or database export.
 
 ## Research workflow
 
@@ -31,7 +35,7 @@ The later [four-primary-ETF historical diagnostic](docs/05-operations/DHANHQ_HIS
 4. In **Research dashboard**, select the ETF/metal/source/basis and available history or explicit date range. Enable SMA/EMA/RSI, enter each lookback explicitly and apply settings. SMA/EMA overlay the price chart; RSI has a separate panel. Inspect exact values, warm-up/gap reasons, seed dates, input fingerprint, quality and synthetic labels below the plots.
 5. In **ETF comparisons**, select 2-10 distinct eligible listings with explicit sources/bases and dates. Inspect actual common endpoints, price changes, base-100 paths and exact common-date values. Incompatible/insufficient results are explicitly unavailable. These are price-only observations, with no total-return or future-performance claim.
 
-No qualified real ETF dataset is bundled or accepted. SQ-01/T-03 remain blocked; do not download/ingest unqualified data. See the [minimum source qualification package](docs/04-planning/VS-01_DATA_QUALIFICATION.md).
+No qualified real ETF dataset is bundled. SQ-01/T-03 and full acceptance remain blocked. Existing owner-authorized transient Dhan observations can support acknowledged conditional research; that does not establish strict historical availability or persistent-use rights. Follow the operating policy and [qualification package](docs/04-planning/VS-01_DATA_QUALIFICATION.md); do not infer permission to persist or redistribute provider data.
 
 ## Data and numerical contracts
 
@@ -67,12 +71,14 @@ For cumulative real PostgreSQL/browser verification, stop the normal UI first so
 ```powershell
 docker compose stop ui
 .\.venv\Scripts\python.exe scripts/verify_local.py --database --browser
-docker compose up --build -d --wait
+docker compose up -d --no-deps --wait ui
 ```
 
-Tests use only disposable local `bullion_test` on loopback 55433 with tmpfs; guards refuse nonlocal/non-`_test` targets. Browser tests start a separate API on 8001 and Vite on 5173. They use real PostgreSQL/backend requests and visibly synthetic fixtures. Reports/screenshots/traces stay in ignored `artifacts/` and frontend report directories.
+Tests use only disposable local `bullion_test` on loopback 55433 with tmpfs; guards refuse nonlocal/non-`_test` targets. Browser tests use separate APIs on 8001/8002 and Vite on 5173; the normal API and its RAM cache stay running. They use real PostgreSQL/backend requests and visibly synthetic fixtures. Reports/screenshots/traces stay in ignored `artifacts/` and frontend report directories.
 
-Final Step 4 run: **114 backend, 16 component and three Chromium tests passed, none failed/skipped**; lint and production build passed. Full/production npm audits and Windows/Linux Python audits found zero known vulnerabilities. Compose rebuilt/repeated startup and synthetic backup/new isolated restore passed. Two backend deprecations and the lazy Plotly chunk-size warning remain; see the completion record for actual evidence and resolved initial failures.
+Package 6 verification reported **901 backend, 51 component and nine Chromium workflows passed, none failed/skipped**, plus lint, production build, containers, dependency and credential checks. The source-control checkpoint reruns those checks before committing. Existing deprecation and Plotly chunk-size warnings remain. Historical package checkpoints retain their dated results; they are not fresh acceptance claims.
+
+The provider-attempt counter changed from23to24 between guarded phases during Package6. Its cause remains unattributed; controlled checks had flat counters. This remains an open operational-audit item, not a reason to silently alter market-data behavior or assert all-session zero requests.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/verify_recovery.py
@@ -85,7 +91,7 @@ Final Step 4 run: **114 backend, 16 component and three Chromium tests passed, n
 - `backend/app/`: strict input/access/CSV/persistence/quality plus pure Decimal arithmetic and read-only snapshot-consistent research orchestration.
 - `backend/tests/`: independent arithmetic references, parsing/access, actual PostgreSQL transactions/concurrency, provenance, snapshots and research API cases.
 - `frontend/src/`: existing workflows plus local charts, research controls, exact tables, comparison/quality disclosures and component regressions.
-- `frontend/e2e/`: original foundation workflow and two research workflows against actual UI/API/PostgreSQL.
+- `frontend/e2e/`: nine workflows covering workspace, provider/session/streaming, daily/intraday/technical charts and forecasting/performance against isolated UI/API/PostgreSQL.
 - `scripts/`: secret initialization, regression driver and isolated recovery verifier. No new service or migration is needed for research.
 
 All paths below use `/api/v1`:
@@ -98,8 +104,10 @@ All paths below use `/api/v1`:
 | Sources | GET/POST /data-sources; PATCH /data-sources/{id}/qualification |
 | Imports | POST/GET /import-batches; GET /import-batches/by-key/{key}; GET /import-batches/{id}; GET /import-batches/{id}/issues |
 | History/quality | GET /instruments/{id}/history; GET /instruments/{id}/quality |
-| Research | GET /instruments/{id}/chart; GET /instruments/{id}/indicators; POST /comparisons (read-only calculation) |
+| Research | GET /instruments/{id}/chart; GET /instruments/{id}/indicators; POST /comparisons; POST /research/technical (read-only calculations) |
+| Forecasting | GET /research/forecasts/context; POST /research/forecasts/run; POST /research/forecasts/evaluate; GET /research/forecasts/runs; GET /research/forecasts/runs/{run_id} |
+| Performance registry | GET /research/forecasts/performance (transient aggregate cards, no price/error history) |
 
 See [design contracts](docs/03-design/VS-01_DETAILED_DESIGN.md), [acceptance dispositions](docs/03-design/VS-01_ACCEPTANCE_AND_TEST_PLAN.md), [dependency review](docs/04-planning/VS-01_SECURITY_REVIEW.md) and [container controls](docs/04-planning/VS-01_CONTAINER_REPRODUCIBILITY.md). Runtime images/uv are digest pinned; dependencies/browser are locked. Verification establishes tested-platform dependency selection/startup, not byte-identical image builds or OS-image vulnerability clearance.
 
-The next gate is qualified real Gold/Silver source evidence, followed by T-03/cumulative acceptance and operational handover. Later R1 strategy/risk/portfolio/paper/manual/broker/AI features remain unimplemented and require separate authorization. The requirements baseline and approved D-01..16 are preserved. Step 4 implementation is checkpointed at `a244cfe`; the later Dhan configuration checkpoint is committed at `2e598c6`; Step 5A diagnostic changes await separate review. No full VS-01 acceptance is declared.
+The next gates are owner UAT, source/finality/adjustment/vintage/calendar qualification, explicit retention rights and a reviewed prospective evidence/statistical protocol. Durable forward evaluation is proposed only; Packages1-6 do not authorize persistent market-data or forecast-history storage. Later strategy/risk/portfolio/AI/ML/trading features require separate scope. Requirements baseline and approved decisions remain unchanged; no full VS-01, model-reliability or production-readiness acceptance is declared.

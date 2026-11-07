@@ -144,8 +144,13 @@ class MarketSessionService:
                     )
                     for quote in result.quotes:
                         previous = self.quotes.get(quote.listing.isin)
-                        if previous and previous.last_trade_at and (
-                            quote.last_trade_at is None or quote.last_trade_at < previous.last_trade_at
+                        if (
+                            previous
+                            and previous.last_trade_at
+                            and (
+                                quote.last_trade_at is None
+                                or quote.last_trade_at < previous.last_trade_at
+                            )
                         ):
                             continue  # A REST fallback/manual response cannot roll back a newer feed event.
                         self.quotes[quote.listing.isin] = quote
@@ -247,6 +252,7 @@ class MarketSessionService:
         indicators=None,
         refresh=False,
         cancel=None,
+        technical=None,
     ):
         cancel = cancel or Event()
         indicators = indicators or {}
@@ -268,6 +274,15 @@ class MarketSessionService:
         if start > end:
             raise APIError(422, "FUTURE_RANGE", "No completed/current session is in this range.")
         warmup = max((n + (1 if m == "RSI" else 0) for m, n in indicators.items()), default=0)
+        if technical is not None:
+            from .technical_analytics import TechnicalParameters
+
+            technical = (
+                technical
+                if isinstance(technical, TechnicalParameters)
+                else TechnicalParameters.model_validate(technical)
+            )
+            warmup = max(warmup, technical.warmup())
         acquisition_start = self._prefix(start, interval, warmup)
         key = (listing.isin, interval)
         requests = 0
@@ -368,6 +383,7 @@ class MarketSessionService:
             indicators,
             requests,
             error,
+            technical=technical,
         )
 
     def expected_starts(self, day, interval, now):
@@ -396,6 +412,7 @@ class MarketSessionService:
         indicators,
         requests,
         error,
+        technical=None,
     ):
         now = self.clock()
         prefix = [r for r in snapshot if acquisition_start <= r.start.date() <= end]
@@ -440,6 +457,17 @@ class MarketSessionService:
                     or previous.end != regular_bounds(previous.start.date())[1]
                 ):
                     breaks[current.start] = "INCOMPLETE_SESSION_BOUNDARY"
+        extended = None
+        if technical is not None:
+            from .technical_analytics import CandlePoint, technical_values
+
+            extended = technical_values(
+                [CandlePoint(r.start, r.close, r.open, r.high, r.low, r.volume) for r in completed],
+                technical,
+                breaks,
+            )
+            for bundle in extended.values():
+                bundle["values"] = [v for v in bundle["values"] if start <= v["time"].date() <= end]
         calculated = {}
         for method, n in indicators.items():
             values = indicator_values(points, method, n, breaks)
@@ -479,8 +507,16 @@ class MarketSessionService:
                 else "COMPLETE_TO_AVAILABLE_COMPLETED_BARS",
                 "not_official_daily_close": True,
             }
-        if provisional and getattr(self, "reconciliation", None) and self.reconciliation.superseded(instrument.id, today):
-            provisional = {**provisional, "classification": "SUPERSEDED_BY_HISTORICAL_FINAL", "superseded": True}
+        if (
+            provisional
+            and getattr(self, "reconciliation", None)
+            and self.reconciliation.superseded(instrument.id, today)
+        ):
+            provisional = {
+                **provisional,
+                "classification": "SUPERSEDED_BY_HISTORICAL_FINAL",
+                "superseded": True,
+            }
         latest = max((r.retrieved_at for r in visible), default=None)
         return {
             "instrument_id": str(instrument.id),
@@ -498,6 +534,27 @@ class MarketSessionService:
                 for r in visible
             ],
             "indicators": calculated,
+            "technical": extended,
+            "computed_at": now,
+            "input_fingerprint": digest(
+                {
+                    "algorithm": "decimal-technical-v1",
+                    "listing": asdict(listing),
+                    "provider": self.provider.identity,
+                    "timestamp_policy": getattr(self.provider, "timestamp_policy", "UNASSESSED"),
+                    "parameters": technical.model_dump(),
+                    "interval": interval,
+                    "rows": [
+                        (r.start, r.open, r.high, r.low, r.close, r.volume, r.source_timestamp)
+                        for r in completed
+                    ],
+                    "breaks": {str(k): v for k, v in breaks.items()},
+                    "range": (start, end),
+                }
+            )
+            if technical is not None
+            else None,
+            "technical_parameters": technical.model_dump() if technical is not None else None,
             "provisional_session": provisional,
             "status": "PARTIAL"
             if error or missing or unknown

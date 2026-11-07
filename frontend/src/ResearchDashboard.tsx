@@ -1,3 +1,6 @@
+import TechnicalWorkbench from './TechnicalWorkbench';
+import ForecastingResearch from './ForecastingResearch';
+import DataViewport, {DATA_PAGE_SIZE} from './DataViewport';
 import ReconciliationPanel from './ReconciliationPanel';
 import MarketSnapshot from './MarketSnapshot';
 import IntradayDashboard from './IntradayDashboard';
@@ -23,12 +26,12 @@ function DailyDashboard({ api, instrument, source, basis }: { api: Call; instrum
   const [problem, setProblem] = useState('');
   const [acquisition, setAcquisition] = useState('');
   const [busy, setBusy] = useState(false);
-  const [shownRows, setShownRows] = useState(100);
+  const [shownRows, setShownRows] = useState(DATA_PAGE_SIZE);
   const generation = useRef(0), abort = useRef<AbortController | null>(null);
   const load = useCallback(async (settings: Settings) => {
     const current = ++generation.current;
     abort.current?.abort(); const controller = new AbortController(); abort.current = controller;
-    setProblem(''); setAcquisition(''); setShownRows(100);
+    setProblem(''); setAcquisition(''); setShownRows(DATA_PAGE_SIZE);
     if (!instrument || !source || !canResearch(source)) { setBusy(false); return; }
     for (const method of methods.filter(m => settings[m])) {
       const raw = period(settings, method), n = Number(raw);
@@ -115,9 +118,9 @@ function DailyDashboard({ api, instrument, source, basis }: { api: Call; instrum
         </section>)}
         {rsi?.values.some(v => v.value !== null) && <section className="card"><h3>Wilder RSI - separate scale</h3><ChartBoundary><Suspense fallback={<p>Loading local chart module.</p>}><Chart title={instrument.symbol + ' Wilder RSI'} rsi identity={rsi.input_fingerprint} traces={[{ name: 'Wilder RSI (' + rsi.n + ')', dates: rsi.values.map(v => v.trading_date), values: rsi.values.map(v => v.value), breaks: rsi.values.map(v => !!v.break_before), color: '#7958a8' }]}/></Suspense></ChartBoundary></section>}
         <section className="card"><h3>Exact research values</h3><p>{Math.min(shownRows,price.points.length)} of {price.points.length} rows shown. Warm-up and unavailable reasons are retained.</p>
-          <div className="table-wrap"><table><caption>Exact prices and server-calculated indicator values</caption><thead><tr><th>Date</th><th>Close / {instrument.currency}</th>{calculations.map(c => <th key={c.method}>{c.method} ({c.n})</th>)}<th>Source row / discontinuity</th></tr></thead>
-            <tbody>{price.points.slice(0,shownRows).map(point => <tr key={point.observation_id}><td>{point.trading_date}</td><td>{point.close}</td>{calculations.map(c => { const value = valueMaps.get(c.method)?.get(point.trading_date); return <td key={c.method}>{value?.value ?? ('Unavailable: ' + (value?.reason || c.result?.unavailable_reason || c.problem || 'Not calculated'))}</td>; })}<td>{point.batch_id.slice(0,8)} / {point.row_number}{point.break_before ? ' | ' + point.break_before : ''}</td></tr>)}</tbody></table></div>
-          {shownRows < price.points.length && <button onClick={() => setShownRows(n => n+100)}>Show more research rows</button>}
+          <DataViewport className="table-wrap" label="Daily research values"><table><caption>Exact prices and server-calculated indicator values</caption><thead><tr><th>Date</th><th>Close / {instrument.currency}</th>{calculations.map(c => <th key={c.method}>{c.method} ({c.n})</th>)}<th>Source row / discontinuity</th></tr></thead>
+            <tbody>{price.points.slice(0,shownRows).map(point => <tr key={point.observation_id}><td>{point.trading_date}</td><td>{point.close}</td>{calculations.map(c => { const value = valueMaps.get(c.method)?.get(point.trading_date); return <td key={c.method}>{value?.value ?? ('Unavailable: ' + (value?.reason || c.result?.unavailable_reason || c.problem || 'Not calculated'))}</td>; })}<td>{point.batch_id.slice(0,8)} / {point.row_number}{point.break_before ? ' | ' + point.break_before : ''}</td></tr>)}</tbody></table></DataViewport>
+          {shownRows < price.points.length && <button onClick={() => setShownRows(n => n+DATA_PAGE_SIZE)}>Show more research rows</button>}
         </section>
       </>}
     </>}
@@ -126,11 +129,12 @@ function DailyDashboard({ api, instrument, source, basis }: { api: Call; instrum
 
 
 export default function ResearchDashboard(props:{api:Call;instrument?:Instrument;source?:Source;basis:string}) {
-  const [view,setView]=useState<'daily'|'intraday'>('daily');
+  const [view,setView]=useState<'daily'|'intraday'|'technical'|'forecast'>('daily');
   const [revision,setRevision]=useState(0);
-  if(!supportsMarketSession(props.source)||!props.instrument)return <DailyDashboard {...props}/>;
+  if(!props.instrument||!props.source||!canResearch(props.source))return <DailyDashboard {...props}/>;
+  const session=supportsMarketSession(props.source);
   const synthetic=props.source?.profile.data_class==='SYNTHETIC_TEST';
-  return <div><MarketSnapshot api={props.api} synthetic={synthetic} onReconciliation={()=>setRevision(r=>r+1)}/><ReconciliationPanel api={props.api} instrument={props.instrument} onChange={()=>setRevision(r=>r+1)}/><div className="range-bar" role="group" aria-label="Research timeframe"><button aria-pressed={view==='daily'} onClick={()=>setView('daily')}>Daily research</button><button aria-pressed={view==='intraday'} onClick={()=>setView('intraday')}>Intraday research</button></div>
-    {view==='daily'?<DailyDashboard key={revision} {...props}/>:<IntradayDashboard key={revision} api={props.api} instrument={props.instrument} synthetic={synthetic}/>}
+  return <div>{session&&<><MarketSnapshot api={props.api} synthetic={synthetic} onReconciliation={()=>setRevision(r=>r+1)}/><ReconciliationPanel api={props.api} instrument={props.instrument} onChange={()=>setRevision(r=>r+1)}/></>}<div className="range-bar" role="group" aria-label="Research timeframe"><button aria-pressed={view==='daily'} onClick={()=>setView('daily')}>Daily research</button>{session&&<button aria-pressed={view==='intraday'} onClick={()=>setView('intraday')}>Intraday research</button>}<button aria-pressed={view==='technical'} onClick={()=>setView('technical')}>Technical analytics</button>{session&&<button aria-pressed={view==='forecast'} onClick={()=>setView('forecast')}>Forecasting Research</button>}</div>
+    {view==='forecast'?<ForecastingResearch key={revision} api={props.api} instrument={props.instrument} source={props.source} basis={props.basis}/>:view==='technical'?<TechnicalWorkbench key={revision} api={props.api} instrument={props.instrument} source={props.source} basis={props.basis}/>:view==='daily'?<DailyDashboard key={revision} {...props}/>:<IntradayDashboard key={revision} api={props.api} instrument={props.instrument} synthetic={synthetic}/>}
   </div>;
 }

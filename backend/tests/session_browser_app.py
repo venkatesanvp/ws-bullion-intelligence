@@ -1,6 +1,8 @@
 """CI-only synthetic backend. Fails closed outside a local disposable test database."""
 
-from datetime import timedelta
+from datetime import timedelta, datetime, time as clock_time
+from app.forecast_contracts import TradingCalendar, CalendarSession
+from app.market_session import IST
 from threading import Event
 from datetime import timezone
 from .test_market_stream import frame
@@ -20,7 +22,7 @@ parsed = make_url(url)
 if parsed.host not in {"127.0.0.1", "localhost"} or not (parsed.database or "").endswith("_test"):
     raise RuntimeError("Disposable local test database required")
 provider, _ = provider_for_session()
-p = plan(start=NOW.date() - timedelta(days=35), end=NOW.date())
+p = plan(start=NOW.date() - timedelta(days=100), end=NOW.date())
 app = create_app(
     settings_for_browser(
         url,
@@ -90,3 +92,32 @@ class SyntheticSocket:
 
 
 app.state.market_stream.connector = lambda *args, **kwargs: SyntheticSocket()
+
+# Package 4 explicit synthetic forecast availability/calendar: never real publication evidence.
+
+forecast_days = set(p.calendar.session_dates)
+future_day = p.calendar.coverage_end + timedelta(days=1)
+forecast_end = p.calendar.coverage_end + timedelta(days=300)
+while future_day <= forecast_end:
+    if future_day.weekday() < 5:
+        forecast_days.add(future_day)
+    future_day += timedelta(days=1)
+forecast_cal = TradingCalendar(
+    calendar_id="SYNTHETIC_BROWSER_NOT_NSE",
+    version="synthetic-future-v1",
+    timezone="Asia/Kolkata",
+    known_at=datetime.combine(p.calendar.coverage_start, clock_time(0), IST) - timedelta(days=1),
+    coverage_start=p.calendar.coverage_start,
+    coverage_end=forecast_end,
+    sessions=tuple(
+        CalendarSession(session_date=d, close_at=datetime.combine(d, clock_time(15, 30), IST))
+        for d in sorted(forecast_days)
+    ),
+)
+app.state.forecast_research.calendar_override = forecast_cal
+for entry in app.state.transient_research._datasets.values():
+    entry["source"].reviewed_at = forecast_cal.known_at
+    for observation in entry["rows"]:
+        observation.ingested_at = datetime.combine(
+            observation.trading_date, clock_time(15, 50), IST
+        )

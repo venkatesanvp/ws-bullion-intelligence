@@ -9,6 +9,7 @@ from fastapi import Request
 from pydantic import Field
 from starlette.concurrency import run_in_threadpool
 from .schemas import Strict
+from .technical_analytics import TechnicalParameters
 
 
 class QuoteRequest(Strict):
@@ -25,6 +26,7 @@ class IntradayRequest(Strict):
         Literal["SMA", "EMA", "RSI"], Annotated[int, Field(strict=True, ge=1, le=10000)]
     ] = Field(default_factory=dict, max_length=3)
     refresh: bool = False
+    technical: TechnicalParameters | None = None
 
 
 def register_session_market(router, respond):
@@ -63,6 +65,7 @@ def register_session_market(router, respond):
                 indicators=body.indicators,
                 refresh=body.refresh,
                 cancel=cancel,
+                technical=body.technical,
             )
         )
         try:

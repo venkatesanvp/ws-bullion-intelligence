@@ -149,7 +149,7 @@ export interface IntradayResult {
   provisional_session:null|{classification:string;session_date:string;open:string;high:string;low:string;close:string;volume:string;coverage:string};
   status:string;error:string|null;requests:number;revision:number;missing_completed_candles:number;
   calendar_unassessed:boolean;last_successful_retrieval:string|null;latest_provider_timestamp:string|null;
-  freshness:string;market_session:string;warmup_bars:number;warnings:string[];source:string;
+  freshness:string;market_session:string;warmup_bars:number;warnings:string[];source:string;price_basis?:string;
 }
 export function marketProblem(code:string|null):string {
   if (!code) return '';

@@ -38,8 +38,8 @@ afterEach(() => vi.unstubAllGlobals());
 async function login() {
   const user = userEvent.setup(); render(<App/>);
   await user.type(screen.getByLabelText('Local application token'), TOKEN);
-  await user.click(screen.getByRole('button', { name: /Open workspace/ }));
-  await screen.findByRole('heading', { name: 'Data workbench' });
+  await user.click(screen.getByRole('button', { name: /Open Bullion Workspace/ }));
+  await screen.findByRole('heading', { name: 'Bullion Data Workspace' });
   return user;
 }
 describe('authorized data foundation', () => {
@@ -59,10 +59,10 @@ describe('authorized data foundation', () => {
   it('shows readiness failures and permits deliberate retry', async () => {
     extra = url => url.endsWith('/health/ready') ? new Response(JSON.stringify({ error: { code: 'DEPENDENCY_NOT_READY', message: 'Database requires migration.' } }), { status: 503 }) : undefined;
     const user = userEvent.setup(); render(<App/>);
-    await user.type(screen.getByLabelText('Local application token'), TOKEN); await user.click(screen.getByRole('button', { name: /Open workspace/ }));
+    await user.type(screen.getByLabelText('Local application token'), TOKEN); await user.click(screen.getByRole('button', { name: /Open Bullion Workspace/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('DEPENDENCY_NOT_READY');
-    expect(screen.queryByRole('heading', { name: 'Data workbench' })).not.toBeInTheDocument();
-    extra = undefined; await user.click(screen.getByRole('button', { name: /Open workspace/ })); await screen.findByRole('heading', { name: 'Data workbench' });
+    expect(screen.queryByRole('heading', { name: 'Bullion Data Workspace' })).not.toBeInTheDocument();
+    extra = undefined; await user.click(screen.getByRole('button', { name: /Open Bullion Workspace/ })); await screen.findByRole('heading', { name: 'Bullion Data Workspace' });
   });
   it('never paints a delayed Gold response under a Silver selection', async () => {
     let resolveGold!: (response: Response) => void;
@@ -107,9 +107,9 @@ describe('authorized data foundation', () => {
     expect(screen.getByText(/No sample market prices are preloaded/)).toBeInTheDocument();
   });
   it('clears the token and workspace when locked', async () => {
-    const user = await login(); await user.click(screen.getByRole('button', { name: 'Lock workspace' }));
+    const user = await login(); await user.click(screen.getByRole('button', { name: 'Lock Bullion Workspace' }));
     expect(screen.getByLabelText('Local application token')).toHaveValue('');
-    expect(screen.queryByRole('heading', { name: 'Data workbench' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Bullion Data Workspace' })).not.toBeInTheDocument();
   });
 });
 

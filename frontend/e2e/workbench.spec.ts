@@ -10,8 +10,8 @@ test('synthetic listing → qualification → import → persisted history → w
   const symbol = 'SYNTH_' + suffix;
   await page.goto('/');
   await page.getByLabel('Local application token').fill(token);
-  await page.getByRole('button', { name: /Open workspace/ }).click();
-  await expect(page.getByRole('heading', { name: 'Data workbench' })).toBeVisible();
+  await page.getByRole('button', { name: /Open Bullion Workspace/ }).click();
+  await expect(page.getByRole('heading', { name: 'Bullion Data Workspace' })).toBeVisible();
   await page.getByRole('button', { name: 'Instruments & watchlists' }).click();
   await page.getByLabel('Symbol', { exact: true }).fill(symbol);
   await page.getByLabel('Display name').fill('SYNTHETIC TEST ONLY ' + suffix);
@@ -55,7 +55,7 @@ test('synthetic listing → qualification → import → persisted history → w
   await expect(page.locator('.watchlist').filter({ has: page.locator('input[value="SYNTHETIC watchlist ' + suffix + '"]') }).getByText(symbol, { exact: true })).toBeVisible();
   await page.reload();
   await page.getByLabel('Local application token').fill(token);
-  await page.getByRole('button', { name: /Open workspace/ }).click();
+  await page.getByRole('button', { name: /Open Bullion Workspace/ }).click();
   await page.getByLabel('ETF listing').selectOption(listing.id);
   await page.getByLabel('Data source').selectOption(source.id);
   await expect(page.getByText('10.1234567890', { exact: true })).toBeVisible();
