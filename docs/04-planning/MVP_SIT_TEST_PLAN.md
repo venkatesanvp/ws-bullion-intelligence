@@ -25,3 +25,12 @@ Performance evidence reports observed timings and resource counts, not invented 
 REC-01: verifier normalized only the exact two equivalent provider-kind enum deparses; modified enums still fail. REC-02: first active handoff failed Origin authentication and lost original transient data; corrected and tested, owner-authorized fresh reacquisition completed within nine total attempts. This incident is not a passed original-data-preservation test. The synthetic safety scenarios pass, while original provenance recovery is unavailable. Owner UAT remains unexecuted; source qualification and historical audit attribution remain open.
 
 Evidence files (ignored local artifacts): verification.json, backend-tests.xml, browser-tests.xml, mvp-production-smoke.json, mvp-container-recovery.json, recovery-verification.json, mvp-security.json, mvp-audit-summary.json, mvp-real-data-consistency.json, mvp-fresh-reload.json and mvp-fresh-reload-remaining.json. No raw real prices/responses or real-data screenshots/traces are included.
+
+
+## MVP05 independently isolated verification
+
+`python scripts/engineering.py setup/build/start/test/recover` in C:/ws-bullion/bullion-mvp05 (one action per command); `python scripts/verify_container_recovery.py`. The runner refuses owner.env/shared mounts/ports/volumes/networks, non-synthetic DB destination and enabled provider settings. It does not run default owner lifecycle commands.
+
+MVP05-C/D/E cases map to test_mvp05_integrity_audit.py, test_mvp_local_management.py and test_engineering_isolation.py: complete provenance/identity/value handoff, missing Origin, malformed/partial/disconnected body, injected late coverage failure, duplicates, mismatched identity/epoch, invalid numeric/duration, unavailable provider, one-shot replay/concurrent target safety, RAM guard/noninteractive refusal, complete budget fingerprint, request correlation/manual refresh/failure/no retry, snapshot-only forecast/evaluation, startup/cached reads, and shared/indirect runtime-state refusal.
+
+Final backend 959 passed, frontend 62 passed, Chromium 11 passed, zero failures/skips. Full result and prior failed setup/harness attempts are explicitly recorded in MVP_IMPLEMENTATION_CHECKPOINT. Production-image smoke uses the temporary synthetic fixture backend; it is not owner UAT or evidence of real-data qualification. Critical/high image disposition is a separate gate in MVP_SECURITY_ASSESSMENT.

@@ -15,7 +15,7 @@ test('synthetic one-year provider import feeds charts indicators and both metal 
   const external: string[] = [];
   page.on('request', request => {
     const url = new URL(request.url());
-    if (['http:', 'https:'].includes(url.protocol) && !['http://127.0.0.1:5173', 'http://127.0.0.1:8001'].includes(url.origin)) external.push(request.url());
+    if (['http:', 'https:'].includes(url.protocol) && !['http://127.0.0.1:15174', 'http://127.0.0.1:18001'].includes(url.origin)) external.push(request.url());
   });
   await page.goto('/');
   await page.getByLabel('Local application token').fill(process.env.TEST_APP_TOKEN);

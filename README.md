@@ -6,7 +6,11 @@ Local Gold/Silver ETF research with source/provenance inspection, exact Decimal 
 
 Research Dashboard includes Daily, Intraday, Technical Analytics and Forecasting Research. B01/B02 provide price endpoints; B03 provides volatility only. Historical modes remain separate: strict point in time, explicit acknowledged conditional replay and labeled synthetic verification. Scorecards compare B01/B02 only on matched eligible origins, disclose overlapping/disjoint windows and do not estimate independent evidence or declare a winning model. Regime analysis is optional and uses fixed cutoff-context rules. Results/registries are bounded process memory, lost on restart/expiry.
 
-## Local MVP release candidate
+## MVP05 engineering checkpoint
+
+The functional 52-file MVP is committed as d781e5b. Subsequent security/integrity changes are isolated in C:/ws-bullion/bullion-mvp05 and pushed only to the existing MVP feature branch; protected owner UAT is not updated. Final verification:959 backend/62 frontend/11 browser tests passed, build/CSP/synthetic recovery/dependency/credential checks passed. Candidate images have zero critical findings; six Debian high instances remain open, plus one branch-fixed Alpine scanner high. **Release security clearance and owner acceptance remain blocked.** See [current engineering checkpoint](docs/04-planning/MVP_IMPLEMENTATION_CHECKPOINT.md), [individual security dispositions](docs/04-planning/MVP_SECURITY_ASSESSMENT.md) and [gates](docs/04-planning/MVP_RELEASE_READINESS.md). Use only the engineering runner described in the local deployment document while UAT is protected.
+
+## Local MVP release candidate (functional checkpoint history)
 
 Lightweight Charts 5.2.1 is the default daily/intraday/technical/forecast price renderer, with native panes, exact-value alternatives and a Plotly fallback. Forecast research includes cached technical inspection and endpoint-only B01/B02 overlays; B03 remains volatility-only. Optional live context is collapsed in technical/forecast views and is not polled while unmounted.
 

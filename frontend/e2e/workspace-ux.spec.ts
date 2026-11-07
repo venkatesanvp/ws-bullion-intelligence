@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 
 test('fifteen-row workspace preserves all rows, sticky headers, range filtering and mobile containment',async({page,request})=>{
  const token=process.env.TEST_APP_TOKEN;if(!token)throw Error('Synthetic token required');
- const root='http://127.0.0.1:8001/api/v1',headers={Authorization:'Bearer '+token,Origin:'http://127.0.0.1:5173'},suffix=randomUUID().slice(0,8).toUpperCase();
+ const root='http://127.0.0.1:18001/api/v1',headers={Authorization:'Bearer '+token,Origin:'http://127.0.0.1:15174'},suffix=randomUUID().slice(0,8).toUpperCase();
  const sr=await request.post(root+'/data-sources',{headers,data:{label:'SYNTHETIC UX '+suffix,profile:{data_class:'SYNTHETIC_TEST',policy_version:'quality-v1'}}});expect(sr.status()).toBe(201);const source=(await sr.json()).data;
  expect((await request.patch(root+'/data-sources/'+source.id+'/qualification',{headers,data:{qualification:'QUALIFIED_FOR_RESEARCH',rights_evidence_ref:'SYNTHETIC TEST ONLY',retention_review_ref:'Disposable test database',permitted_uses:{retrieval:true,storage:true,analysis:true,display:true}}})).status()).toBe(200);
  const ir=await request.post(root+'/instruments',{headers,data:{exchange:'XNSE',symbol:'UX_'+suffix,name:'SYNTHETIC UX FIXTURE',metal:'GOLD',currency:'INR'}});expect(ir.status()).toBe(201);const instrument=(await ir.json()).data;

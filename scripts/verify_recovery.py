@@ -16,7 +16,11 @@ import subprocess
 import sys
 from uuid import uuid4
 
+ENGINEERING = "--engineering" in sys.argv
 ROOT = Path(__file__).resolve().parents[1]
+if ENGINEERING:
+    os.environ["DATABASE_URL"] = "postgresql+psycopg://test:test@127.0.0.1:1/unavailable_test"
+    os.environ["LOCAL_APP_TOKEN"] = "synthetic-recovery-bootstrap-not-a-secret-000000"
 sys.path.insert(0, str(ROOT / "backend"))
 from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402
@@ -92,7 +96,23 @@ def main():
 
     def compose(*args, data=None):
         result = subprocess.run(
-            [docker, "compose", *args],
+            [
+                docker,
+                "compose",
+                *(
+                    [
+                        "--project-name",
+                        "bullion-mvp05",
+                        "--file",
+                        "compose.engineering.yaml",
+                        "--env-file",
+                        "artifacts/engineering.env",
+                    ]
+                    if ENGINEERING
+                    else []
+                ),
+                *args,
+            ],
             input=data,
             capture_output=True,
             cwd=ROOT,
@@ -108,9 +128,15 @@ def main():
         print("PASS: " + name, flush=True)
 
     try:
+        if ENGINEERING:
+            from engineering import validate
+
+            validate()
         local = dict(
             line.split("=", 1)
-            for line in (ROOT / ".env").read_text().splitlines()
+            for line in (ROOT / ("artifacts/engineering.env" if ENGINEERING else ".env"))
+            .read_text()
+            .splitlines()
             if "=" in line and not line.startswith("#")
         )
         compose("--profile", "test", "up", "-d", "--wait", "test-db")
@@ -128,7 +154,7 @@ def main():
         report.update(source_database=source, restored_database=target)
         credentials = {
             "host": "127.0.0.1",
-            "port": 55433,
+            "port": (15433 if ENGINEERING else 55433),
             "user": local["POSTGRES_USER"],
             "password": local["POSTGRES_PASSWORD"],
         }
@@ -141,7 +167,7 @@ def main():
                 username=credentials["user"],
                 password=credentials["password"],
                 host="127.0.0.1",
-                port=55433,
+                port=(15433 if ENGINEERING else 55433),
                 database=name,
             ).render_as_string(hide_password=False)
 

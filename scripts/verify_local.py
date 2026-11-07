@@ -24,12 +24,21 @@ def main():
     parser.add_argument(
         "--browser",
         action="store_true",
-        help="Run real-backend Chromium workflow; requires --database and free ports 5173/8001",
+        help="Run real-backend Chromium workflow; requires --database and free ports 15174/18001/18002",
+    )
+    parser.add_argument(
+        "--engineering",
+        action="store_true",
+        help="Synthetic MVP05 Compose project; never uses UAT env, ports or volumes",
     )
     args = parser.parse_args()
     if args.browser and not args.database:
         parser.error("--browser requires --database; no production database fallback")
     os.chdir(ROOT)
+    if args.engineering:
+        from engineering import validate
+
+        validate()
     artifacts = ROOT / "artifacts"
     artifacts.mkdir(exist_ok=True)
     python = ROOT / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
@@ -70,7 +79,7 @@ def main():
             else "docker"
         )
         # Only generated key=value settings are read. Nothing is printed or passed in command-line arguments.
-        local_file = ROOT / ".env"
+        local_file = ROOT / ("artifacts/engineering.env" if args.engineering else ".env")
         if not local_file.exists():
             parser.error("Run scripts/configure_local.py before isolated database tests")
         local = dict(
@@ -84,14 +93,35 @@ def main():
         env["POSTGRES_DB"] = local.get("POSTGRES_DB", "bullion")
         database_ready = run(
             "isolated PostgreSQL startup",
-            [docker, "compose", "--profile", "test", "up", "-d", "--wait", "test-db"],
+            [
+                docker,
+                "compose",
+                *(
+                    [
+                        "--project-name",
+                        "bullion-mvp05",
+                        "--file",
+                        "compose.engineering.yaml",
+                        "--env-file",
+                        "artifacts/engineering.env",
+                    ]
+                    if args.engineering
+                    else []
+                ),
+                "--profile",
+                "test",
+                "up",
+                "-d",
+                "--wait",
+                "test-db",
+            ],
             timeout=180,
         )
         if database_ready:
             user = quote(local["POSTGRES_USER"], safe="")
             password = quote(local["POSTGRES_PASSWORD"], safe="")
             env["TEST_DATABASE_URL"] = (
-                f"postgresql+psycopg://{user}:{password}@127.0.0.1:55433/bullion_test"
+                f"postgresql+psycopg://{user}:{password}@127.0.0.1:{15433 if args.engineering else 55433}/bullion_test"
             )
             env["DATABASE_URL"] = env["TEST_DATABASE_URL"]
             env["TEST_APP_TOKEN"] = TOKEN

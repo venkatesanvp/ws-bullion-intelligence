@@ -1,3 +1,97 @@
+# MVP05 engineering checkpoint - 2026-11-07
+
+**Engineering verification passed within the recorded scope. Release security clearance remains BLOCKED; owner UAT and MVP acceptance remain pending.** No engineering change has been deployed to the protected UAT environment.
+
+## Source control and isolation
+
+Functional 52-file review: 33 modified /19 new /0 removed, no configured secret/token-shaped material, restricted data or large artifacts. Functional checkpoint `d781e5b6098cf7b5d44ee43233160c58c5278f37` was pushed to `feature/local-mvp-charting-forecasting-deployment` at existing origin `https://github.com/venkatesanvp/ws-bullion-intelligence.git`. PR #1 is verified merged at `afa434cf2fe7e432f63b241f32e95bdcd2b3b621`; it is not the MVP05 PR. No new PR/merge/tag/protection change is part of MVP05.
+
+Engineering worktree: `C:/ws-bullion/bullion-mvp05`, local branch `engineering/mvp05-hardening`. Only its HEAD is normally fast-forward-pushed to the authorized **remote MVP feature branch**. This local branch name is an isolation aid; it is not pushed as another remote branch. Owner worktree remains clean at d781e5b on its original feature branch; it is deliberately not fast-forwarded while UAT is active, because that would replace its Compose/lifecycle source files. The engineering HEAD/remote equality and exact final SHA are recorded after commit in `artifacts/mvp05-git-synchronization.json` and the completion report. Both worktrees can therefore be clean while the owner branch is behind the remote by the reviewed engineering commits.
+
+Commits: functional d781e5b; container security **87a8763**; recovery/audit **02d9028**; final engineering/verification commit follows those two. No force, reset, amend, rebase, branch/tag deletion or main merge. Requirements baseline, decision register, both lockfiles and `requirements-v1.0` tag object `5eeed03536e43ded7077ac086b97cb05f2e5b73e` remain unchanged.
+
+Protected UAT: project bullion-vs01, UI5173/API8000/DB unexposed, volume bullion-vs01_bullion_data, network bullion-vs01_default, no source bind mounts. Engineering: project bullion-mvp05, UI15173/API18000/testDB15433, browser15174/API18001/18002, independent volume/network, no owner .env or credentials, no shared binds or real cache copies. Internal-only networking initially prevented Docker Desktop loopback test connectivity; the separate bridge now permits engineering host tests. This is **not** an egress firewall. Real-provider capability flags are false and credentials blank; fixtures use MockTransport. The runner validates project/image/port/network/volume/database identity, rejects indirect bind options and fails before runtime actions on unsafe configuration.
+
+UAT metadata preservation receipt confirms the same IDs/start times/images/mounts/ports/networks and unchanged .env hash, and a clean owner worktree. No UAT cache, SQL rows, provider request or profile/account data was read/exported/copied; no UAT lifecycle command was run. This is metadata/non-interference evidence, not a claim that owner-driven UAT cache contents never changed.
+
+## Traceability
+
+| Workstream | Change | Evidence |
+|---|---|---|
+| MVP05-A | Reviewed functional source checkpoint /normal feature push | Source review receipt, exact MVP_CHANGED_FILES manifest, Git history/remote equality |
+| MVP05-B | Supported pinned same-major bases; non-root API/DB; gosu removed; patched static UI runtime | Existing security report's complete54 baseline finding matrix plus two intermediate Alpine findings; unfiltered final SARIF |
+| MVP05-C / REQ-05-009 / REQ-06-008 /DC-09 | Fully staged RAM restore, complete evidence comparison, interactive failure guard | test_mvp05_integrity_audit, test_mvp_local_management, synthetic binary recovery and container lifecycle receipts |
+| MVP05-D | Sanitized provider start/completion/abort events, request correlation, fixed triggers | Mock status/error/timeout/circuit tests and production-UI synthetic counter guard |
+| MVP05-E | Independent engineering runner /distinct browser ports /container lifecycle | Complete regression, isolation refusal tests, production CSP smoke, dependency/credential checks |
+| MVP05-F/G | Pending owner UAT intake /honest release gates | Updated UAT plan and release-readiness document |
+
+Canonical Decimal analytics, B01/B02 price models, B03 volatility-only behavior, matched origins, strict/conditional evaluation contracts, source permissions and transient retention policies are unchanged. No new forecasting model, broker execution, order/account/holdings operation, scheduler, live request, durable market-data store or forecast ledger was introduced.
+
+## Recovery verification and limitations
+
+Confirmed defect: old restore published daily state before preparing intraday coverage. An exception at that later step could leave a partial publication. Correction: deep-copy catalogue metadata into a private shadow, validate/remap a private payload, prepare all quote/candle/coverage maps, then publish under existing locks. Caller-owned payload is not mutated. Intraday duration exceeding its declared interval is rejected. Existing numeric/identity/time/OHLC checks remain.
+
+Synthetic tests verify all observation values/IDs, first-seen timestamps, batch/observation evidence, quote/candle classifications and budget fields. Missing Origin is403; malformed/truncated/invalid payloads fail without publication; duplicates, wrong ISIN, source epoch mismatch, bad durations/non-finite prices/fractional volume reject atomically. Injected coverage failure after daily validation leaves the target untouched and allows a corrected retry. Disconnected upload never reaches restore. Unavailable provider is never called by restore. Replay remains deliberately one-shot409 with unchanged state: **idempotent state safety**, not an unconditional repeated200 response. After an uncertain response the management helper exports and compares the entire normalized snapshot, removing only ephemeral catalogue IDs; it never overwrites nonempty concurrent state.
+
+Future authorized managed restart: full offline preflight; refuse noninteractive replacement of an existing API; retain the original payload in process RAM after any replacement/restore failure; explicit local retry or explicit `DISCARD TRANSIENT CACHE` only. No automatic provider retry and no disk/SQL snapshot. Ctrl-C/EOF in the recovery prompt retains the copy; killing that process, workstation failure, unmanaged stop/restart or power loss can still lose transient state. This is not durable recovery. The test action no longer stops the owner UI to free5173; browser verification has independent ports.
+
+Binary synthetic backup: separate uniquely named source/restore *_test databases on engineering test-db. Backup SHA256/archive listing, restore to empty isolated DB, table/schema/query/provenance fingerprints and append-only trigger all pass. No active application DB or real cache is used. Container API/UI/DB/full restart and stop/start preserve the synthetic SQL catalogue checksum; repeated no-recreate start leaves process start times unchanged. Populated RAM handoff is verified separately through the authenticated HTTP boundary. Direct unguarded API restart loses its RAM by design; container catalogue tests do not claim otherwise.
+
+Measured graceful exits: API143 after uv forwards SIGTERM, with explicit Uvicorn shutdown-complete/finished-process messages; UI0/DB0, no OOM/forced137. Runtime UIDs API10001/UI1000/DB999. PostgreSQL major18, Debian13 and data path retained; no active-volume migration. See mvp05-container-recovery.json.
+
+REC-02's original 1294 daily/1442 intraday/four quote cache was lost historically; original identities/first-seen evidence were not recovered. The later owner-authorized fresh reload remains a distinct acquisition. This package neither reacquired nor copied that real cache. Its previously reported992daily/300intraday snapshot is historical, not a new acceptance target.
+
+## Provider-attempt investigation
+
+The earlier **23 ->24 remains an unresolved historical observation**: no retained causal correlation receipt establishes which request caused it. Later **one rejected-token attempt plus eight successful requests** is a separate authorized reload sequence and is not its explanation. No live request was made to reproduce either observation.
+
+The shared budget counts adapters' **HTTP attempt results**, including authentication failures, timeouts and other dispatched failures, not only successful requests or logical UI actions. Pre-dispatch/configuration/cache/circuit/budget rejections count0. One logical range may partition into multiple bounded attempts; automatic retry count remains0. WebSocket subscriptions/messages are separate and not represented by this HTTP budget. Normal clock uses UTC dates for the local daily policy; this is not proof of Dhan's billing/quota reset convention. An unexpected programming exception is logged as ATTEMPT_COUNT_UNKNOWN, never falsely treated as a known zero/success.
+
+Fixed service triggers: MANUAL_REFRESH, RANGE_ENSURE, QUOTE_POLL, INTRADAY_RANGE, DIRECT_SERVICE. Each allowed call records start and completion/abort with ISO timestamp, operation, counter before/after, outcome, retry_count0 and a UUID correlation ID propagated from the authenticated local request. Request logs supply route/method/status for the same ID; no user-supplied trigger, header/credential value, raw exception text, price body, account identifier or raw provider response is logged. These are service-trigger receipts, not a fabricated browser click history.
+
+Source review: startup constructs clients without retrieving; no scheduled provider worker was added; optional open quote view may legitimately poll when due/market open; manual quote refresh and missing/range/intraday operations may acquire under existing read-only policy; technical/forecast live context stays unmounted while closed. Cached snapshot forecast/evaluation do not acquire. Existing bounded transport has no automatic retry. Mocks cover200/401/403/429/500, network timeout, cached reads/startup/manual refresh and circuit behavior. Built UI navigation/forecast/evaluation left synthetic quote/intraday counts **1/0 ->1/0**, zero real provider attempts. Historical attribution is still open; future correlation reduces this diagnostic gap without claiming restart-safe durable audit evidence.
+
+## Verification
+
+Complete final backend run: **959 passed**, zero failures/errors/skips; 6 existing deprecation warnings. Complete frontend: **62 passed/10files**. Chromium: **11 passed**, retries0. Ruff, TypeScript/Vite production build and final built-image CSP/native/Plotly/forecast/evaluation smoke pass. All56 deployed engineering backend module hashes match source. Additional isolation cases found a missing database-destination check (957passed/1failed); it was corrected before any unsafe runtime operation, exact synthetic settings validation was added, and the complete backend rerun passed959. Frontend/browser evidence remains valid because no frontend application behavior changed afterward. The reproducible built-UI smoke was rerun after promoting its source helper.
+
+Python audits: Windows 40 / Linux 31 dependencies, zero vulnerabilities/skips; npm full/production zero. Exact configured-secret and credential-shaped checks found none in proposed/staged bytes,10built assets/server or both engineering log streams. Actual owner credentials remained only in owner .env/backend; engineering Dhan fields are blank/disabled. .env/artifacts/builds/caches/backups remain ignored/untracked; public-image binary and synthetic backups are not committed.
+
+OS images: API 0 critical / 2 high; UI 0 critical / 1 high (primary tracker branch-fixed, raw retained); DB 0 critical / 4 high. Six Debian finding instances remain open, not accepted. Full individual evidence/dispositions/digests are in MVP_SECURITY_ASSESSMENT. Dependency success is not OS-image clearance.
+
+Failures are retained rather than hidden: initial focused harness used GET instead of documented quote POST and an unused identity field; corrected fixtures and rerun pass. First full run:880passed/59database-setup errors due engineering internal-network host connectivity; browser not run, lint failed before formatting. Isolated bridge and harness fixes yield final zero errors/skips. Initial backup bootstrap lacked synthetic Settings; corrected to non-network engineering defaults, then seven recovery checks pass. Initial lifecycle expected API exit0; inspected shutdown logs establish graceful143 and retain strict failure checks. Alpine's intermediate critical and unavailable edge musl patch were rejected and documented in the security assessment. No failing result is called release acceptance. Engineering services were stopped after verification, retaining only their synthetic volumes; owner UAT stayed running.
+
+Remaining nonfatal warnings: existing Starlette/httpx/Alembic deprecations, large lazy Plotly chunk (~1.2MB), NO_COLOR/FORCE_COLOR browser-tool warning. No increased assertion retries or financial tolerance relaxation.
+
+## Performance observations (synthetic; not SLAs)
+
+| Scenario | Observed time |
+|---|---|
+| TATAGOLD daily switch/render | 900ms |
+| TATSILV daily switch/render | 812ms |
+| GOLDBEES daily switch/render | 871ms |
+| SILVERBEES daily switch/render | 1262ms |
+| indicator visibility | 282ms |
+| Production built UI three-model forecast through rendered result | 492ms |
+| Production built UI historical evaluation through rendered metrics | 1137ms |
+| Engineering restart api | 5017ms |
+| Engineering restart ui | 3432ms |
+| Engineering restart db | 3568ms |
+| Engineering restart db/api/ui | 5477ms |
+| Engineering stop/start  | 52529ms |
+
+Switch/render timings include fetch/control/render and cold chart initialization in the workflow; they are not an isolated renderer microbenchmark. Stable23canvas and zero page errors are bounded lifecycle evidence, not a heap/leak proof. One post-check resource sample: API0.16%CPU/79.94MiB, UI0%/16.07MiB, DB6.02%/30.3MiB on Docker's7.623 GiB VM. Concurrent engineering activity affects timings; no superiority, capacity, significance or production SLA claim.
+
+## Evidence and next decisions
+
+Exact changes: MVP_CHANGED_FILES (41 MVP05 files:32modified/9new;65unique outgoing files including the functional checkpoint). Reproduction: MVP_LOCAL_DEPLOYMENT and scripts/engineering.py. Ignored receipts include final-backend-corrected.log/backend-tests.xml, final-verification.log/browser-tests.xml/verification.json, mvp05-production-smoke.json, mvp05-container-recovery.json, recovery-verification.json, dependency-audits.json, mvp05-security-boundary.json and mvp05-uat-preservation.json. Real data was not used for this package's engineering tests.
+
+Owner UAT remains pending/independent. Required next decisions: supported fixes or formal scoped disposition for six open Debian findings; separate controlled deployment window after risk review; owner defect/retest results; source retention/publication/finality/adjustment/calendar qualification before any durable forward-evaluation design. No autonomous risk acceptance, production/MVP acceptance, main merge, release tag or new feature increment.
+
+---
+
+## Archived functional checkpoint (d781e5b; historical counts/status below)
+
 # Local Research MVP implementation checkpoint
 
 Status: MVP-02/03/04 implemented and locally deployed; automated verification passed. Owner UAT and release acceptance remain pending. No commit or push authorized. Baseline: merged PR #1, afa434cf2fe7e432f63b241f32e95bdcd2b3b621. Branch: feature/local-mvp-charting-forecasting-deployment.

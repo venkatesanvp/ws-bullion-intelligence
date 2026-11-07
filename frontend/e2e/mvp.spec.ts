@@ -3,8 +3,8 @@ import {writeFileSync} from 'node:fs';
 
 test('MVP native charts across four ETFs, indicators, themes, refresh, timeframe and responsive lifecycle',async({page,request})=>{
  test.setTimeout(180000);const token=process.env.TEST_APP_TOKEN;if(!token)throw Error('Synthetic token required');
- const session=(await(await request.get('http://127.0.0.1:8002/api/v1/transient-session',{headers:{Authorization:'Bearer '+token}})).json()).data;
- await page.route('http://127.0.0.1:8001/api/v1/**',async route=>{if(route.request().url().endsWith('/stream-events')){await route.abort();return;}const response=await route.fetch({url:route.request().url().replace(':8001/',':8002/')});await route.fulfill({response});});
+ const session=(await(await request.get('http://127.0.0.1:18002/api/v1/transient-session',{headers:{Authorization:'Bearer '+token}})).json()).data;
+ await page.route('http://127.0.0.1:18001/api/v1/**',async route=>{if(route.request().url().endsWith('/stream-events')){await route.abort();return;}const response=await route.fetch({url:route.request().url().replace(':18001/',':18002/')});await route.fulfill({response});});
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  const measurements:{scenario:string;milliseconds:number}[]=[];
  await page.goto('/');await page.getByLabel('Local application token').fill(token);await page.getByRole('button',{name:/Open Bullion Workspace/}).click();
@@ -28,12 +28,12 @@ test('MVP native charts across four ETFs, indicators, themes, refresh, timeframe
 });
 
 test('MVP strict mode warnings and explicit conditional acknowledgement with real-like synthetic metadata',async({page,request})=>{
- test.setTimeout(60000);const token=process.env.TEST_APP_TOKEN!;const session=(await(await request.get('http://127.0.0.1:8002/api/v1/transient-session',{headers:{Authorization:'Bearer '+token}})).json()).data;
+ test.setTimeout(60000);const token=process.env.TEST_APP_TOKEN!;const session=(await(await request.get('http://127.0.0.1:18002/api/v1/transient-session',{headers:{Authorization:'Bearer '+token}})).json()).data;
  let context:any=null;const modes:string[]=[];
- await page.route('http://127.0.0.1:8001/api/v1/**',async route=>{
+ await page.route('http://127.0.0.1:18001/api/v1/**',async route=>{
   const url=route.request().url();if(url.endsWith('/stream-events')){await route.abort();return;}
   if(url.endsWith('/research/forecasts/evaluate')){const body=route.request().postDataJSON();modes.push(body.evaluation_mode);expect(body.acknowledge_replay_assumptions).toBe(body.evaluation_mode==='CONDITIONAL_HISTORICAL_REPLAY');await route.fulfill({json:{data:{status:'DATA_QUALITY_BLOCKED',reason:'METADATA_NOT_AVAILABLE',evaluation_mode:body.evaluation_mode,qualification_status:'TRANSIENT_OWNER_AUTHORIZED_UNQUALIFIED',context,sample_count:0,rows:[],exclusions:[],experiment:null,assumptions:[]}}});return;}
-  const response=await route.fetch({url:url.replace(':8001/',':8002/')});const payload=await response.json();
+  const response=await route.fetch({url:url.replace(':18001/',':18002/')});const payload=await response.json();
   if(url.includes('/data-sources')){for(const source of payload.data||[])if(source.id===session.source_id)source.profile={...source.profile,data_class:'REAL_MARKET'};}
   if(url.includes('/research/forecasts/context?')){payload.data={...payload.data,data_class:'REAL_MARKET',quality:'CONDITIONAL_OWNER_RESEARCH',manual_refresh_enabled:false};context=payload.data;}
   await route.fulfill({response,json:payload});

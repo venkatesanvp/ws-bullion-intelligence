@@ -16,3 +16,26 @@ All cases are PENDING OWNER EXECUTION. Automated SIT is supporting evidence, not
 | UAT-10 / MVP-04 unavailable data | Use mocked demonstration or existing sanitized failure; do not invalidate real credentials just for test | Missing/stale/expired data is clear; no false forecast reliability | Not executed | Owner record pending | PENDING | ? |
 
 Owner records date, pass/fail, usability findings and defect references per case. MVP release remains unaccepted until required owner cases and governance gates are resolved or explicitly accepted with scope limitations.
+
+
+## MVP05 protected UAT and defect intake
+
+All owner results remain PENDING OWNER EXECUTION. Automated/SIT evidence never changes these statuses. UAT continues at 127.0.0.1:5173 on the original d781e5b functional source/baked images; engineering candidates87a8763/02d9028 and final verification changes are not deployed there. Restart case UAT-09 and applying engineering fixes require a separately agreed owner window; the agent must not run them during protected UAT.
+
+Use one record per reported defect:
+
+| Field | Owner/engineering entry |
+|---|---|
+| Test ID and scenario | UAT case and concrete activity |
+| Expected behavior | Observable expected result |
+| Actual behavior | Observed result, no secrets/raw market export |
+| Severity | Critical/high/medium/low with impact |
+| Reproduction steps | Inputs/navigation and repeatability |
+| Evidence | Sanitized screenshot/log reference; no token/account data |
+| Environment/build identity | OwnerUAT or isolated engineering, commit and container image IDs, time |
+| Defect status | New/reproduced/in progress/fixed awaiting owner retest/verified/closed |
+| Fix commit | Immutable reviewed SHA; never implies deployed |
+| Engineering retest | Case/command/result and evidence |
+| Owner retest result | Pending/pass/fail with owner date/evidence |
+
+Workflow: reproduce with synthetic/permitted fixtures in the isolated worktree; identify root cause; implement targeted fix; add regression; verify/commit/push; report fix SHA. Request owner retest only after a separately authorized deployment. Do not replace credentials, clear caches, restart UAT, mark acceptance or fabricate evidence.

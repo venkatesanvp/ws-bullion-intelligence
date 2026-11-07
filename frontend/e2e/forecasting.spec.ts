@@ -2,9 +2,9 @@ import {writeFileSync} from 'node:fs';
 import {test,expect} from '@playwright/test';
 test('synthetic canonical gold B01 silver B02 volatility evaluation comparison and insufficient data',async({page,request})=>{
  test.setTimeout(120000);const token=process.env.TEST_APP_TOKEN;if(!token)throw Error('Synthetic local token required');
- const session=(await(await request.get('http://127.0.0.1:8002/api/v1/transient-session',{headers:{Authorization:'Bearer '+token}})).json()).data;
+ const session=(await(await request.get('http://127.0.0.1:18002/api/v1/transient-session',{headers:{Authorization:'Bearer '+token}})).json()).data;
  const gold=session.instruments.find((i:{symbol:string})=>i.symbol==='TATAGOLD'),silver=session.instruments.find((i:{symbol:string})=>i.symbol==='TATSILV');
- await page.route('http://127.0.0.1:8001/api/v1/**',async route=>{if(route.request().url().endsWith('/stream-events')){await route.abort();return;}const response=await route.fetch({url:route.request().url().replace(':8001/',':8002/')});await route.fulfill({response});});
+ await page.route('http://127.0.0.1:18001/api/v1/**',async route=>{if(route.request().url().endsWith('/stream-events')){await route.abort();return;}const response=await route.fetch({url:route.request().url().replace(':18001/',':18002/')});await route.fulfill({response});});
  await page.goto('/');await page.getByLabel('Local application token').fill(token);await page.getByRole('button',{name:/Open Bullion Workspace/}).click();
  await page.getByRole('combobox',{name:'ETF listing',exact:true}).selectOption(gold.instrument_id);await page.getByRole('combobox',{name:'Data source',exact:true}).selectOption(session.source_id);await page.getByRole('combobox',{name:'Price basis',exact:true}).selectOption('PROVIDER_ADJUSTED');
  await page.getByRole('button',{name:'Research dashboard',exact:true}).click();await page.getByRole('button',{name:'Forecasting Research',exact:true}).click();

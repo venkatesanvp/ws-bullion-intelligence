@@ -1,0 +1,140 @@
+name: bullion-mvp05
+services:
+  db:
+    image: bullion-mvp05-db:engineering
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Run scripts/configure_local.py}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/configure_local.py}
+      POSTGRES_DB: ${POSTGRES_DB:-bullion}
+    volumes:
+    - bullion_data:/var/lib/postgresql
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.postgres
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-bullion}
+      LOCAL_APP_TOKEN: ${LOCAL_APP_TOKEN:?Run scripts/configure_local.py}
+    command:
+    - uv
+    - run
+    - --frozen
+    - --no-dev
+    - alembic
+    - -c
+    - backend/alembic.ini
+    - upgrade
+    - head
+    depends_on:
+      db:
+        condition: service_healthy
+    image: bullion-mvp05-api:engineering
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-bullion}
+      LOCAL_APP_TOKEN: ${LOCAL_APP_TOKEN:?Run scripts/configure_local.py}
+      DHAN_APP_NAME: ''
+      DHAN_API_KEY: ''
+      DHAN_API_SECRET: ''
+      DHAN_CLIENT_ID: ''
+      DHAN_ACCESS_TOKEN: ''
+      DHAN_API_BASE_URL: https://api.dhan.co/v2
+      DHAN_DATA_API_ENABLED: 'false'
+      MARKET_DATA_ENABLED: 'false'
+      MARKET_DATA_AUTO_MISSING: ${MARKET_DATA_AUTO_MISSING:-true}
+      MARKET_DATA_MAX_REQUESTS: ${MARKET_DATA_MAX_REQUESTS:-8}
+      MARKET_DATA_PARTITION_DAYS: ${MARKET_DATA_PARTITION_DAYS:-366}
+      MARKET_DATA_TIMEOUT_SECONDS: ${MARKET_DATA_TIMEOUT_SECONDS:-10}
+      MARKET_DATA_FRESHNESS_SECONDS: ${MARKET_DATA_FRESHNESS_SECONDS:-604800}
+      MARKET_DATA_EMPTY_RETRY_SECONDS: ${MARKET_DATA_EMPTY_RETRY_SECONDS:-3600}
+      MARKET_DATA_FAILURE_BACKOFF_SECONDS: ${MARKET_DATA_FAILURE_BACKOFF_SECONDS:-300}
+      MARKET_DATA_MIN_INTERVAL_SECONDS: ${MARKET_DATA_MIN_INTERVAL_SECONDS:-1}
+      MARKET_DATA_DAILY_BUDGET: ${MARKET_DATA_DAILY_BUDGET:-1000}
+      MARKET_DATA_MAX_ROWS: ${MARKET_DATA_MAX_ROWS:-100000}
+      MARKET_DATA_MAX_COVERAGE_DAYS: ${MARKET_DATA_MAX_COVERAGE_DAYS:-100000}
+      MARKET_DATA_AUTO_REFRESH_SECONDS: ${MARKET_DATA_AUTO_REFRESH_SECONDS:-0}
+      MARKET_STREAM_ENABLED: 'false'
+      MARKET_QUOTES_ENABLED: 'false'
+      MARKET_INTRADAY_ENABLED: 'false'
+      MARKET_QUOTE_REFRESH_SECONDS: ${MARKET_QUOTE_REFRESH_SECONDS:-15}
+      MARKET_QUOTE_STALE_SECONDS: ${MARKET_QUOTE_STALE_SECONDS:-45}
+      MARKET_INTRADAY_REFRESH_SECONDS: ${MARKET_INTRADAY_REFRESH_SECONDS:-60}
+      MARKET_INTRADAY_PARTITION_DAYS: ${MARKET_INTRADAY_PARTITION_DAYS:-7}
+      MARKET_SESSION_MAX_REQUESTS: ${MARKET_SESSION_MAX_REQUESTS:-8}
+      MARKET_SESSION_MAX_ROWS: ${MARKET_SESSION_MAX_ROWS:-100000}
+      MARKET_PROVIDER_DAILY_BUDGET: ${MARKET_PROVIDER_DAILY_BUDGET:-10000}
+      ALLOWED_ORIGINS: http://127.0.0.1:15173,http://localhost:15173
+    ports:
+    - 127.0.0.1:18000:8000
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import os,urllib.request; r=urllib.request.Request('http://127.0.0.1:8000/api/v1/health/ready',headers={'Authorization':'Bearer
+        '+os.environ['LOCAL_APP_TOKEN']}); urllib.request.urlopen(r,timeout=2)
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    image: bullion-mvp05-api:engineering
+  ui:
+    read_only: true
+    cap_drop:
+    - ALL
+    security_opt:
+    - no-new-privileges:true
+    build:
+      context: frontend
+      args:
+        VITE_API_ROOT: http://127.0.0.1:18000/api/v1
+    ports:
+    - 127.0.0.1:15173:5173
+    depends_on:
+      api:
+        condition: service_healthy
+    image: bullion-mvp05-ui:engineering
+    environment:
+      LOCAL_API_ORIGIN: http://127.0.0.1:18000
+  test-db:
+    profiles:
+    - test
+    image: bullion-mvp05-db:engineering
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: bullion_test
+    ports:
+    - 127.0.0.1:15433:5432
+    tmpfs:
+    - /var/lib/postgresql
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U "$$POSTGRES_USER" -d bullion_test
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.postgres
+volumes:
+  bullion_data: {}
+networks:
+  default:
+    internal: false
