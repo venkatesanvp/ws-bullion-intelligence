@@ -4,11 +4,11 @@ test('synthetic quotes, automatic refresh, intraday candles and timeframe indica
   test.setTimeout(90000);
   const token=process.env.TEST_APP_TOKEN;if(!token)throw Error('Synthetic local test token required');
   const headers={Authorization:'Bearer '+token};
-  const session=(await(await request.get('http://127.0.0.1:18002/api/v1/transient-session',{headers})).json()).data;
+  const session=(await(await request.get('http://127.0.0.1:18012/api/v1/transient-session',{headers})).json()).data;
   const instrument=session.instruments.find((i:{symbol:string})=>i.symbol==='TATAGOLD');
-  await page.route('http://127.0.0.1:18001/api/v1/**',async route=>{
+  await page.route('http://127.0.0.1:18011/api/v1/**',async route=>{
     if(route.request().url().endsWith('/stream-events')){await route.abort();return;}
-    const response=await route.fetch({url:route.request().url().replace(':18001/',':18002/')});
+    const response=await route.fetch({url:route.request().url().replace(':18011/',':18012/')});
     await route.fulfill({response});
   });
   await page.goto('/');await page.getByLabel('Local application token').fill(token);await page.getByRole('button',{name:/Open Bullion Workspace/}).click();
@@ -17,7 +17,7 @@ test('synthetic quotes, automatic refresh, intraday candles and timeframe indica
   await page.getByRole('combobox',{name:'Price basis',exact:true}).selectOption('PROVIDER_ADJUSTED');
   await page.getByRole('button',{name:'Research dashboard',exact:true}).click();
   await expect(page.locator('.quote-card')).toHaveCount(4);await expect(page.getByText('SYNTHETIC TEST DATA').first()).toBeVisible();
-  const count=async()=> (await(await request.get('http://127.0.0.1:18002/api/v1/market-data/session-policy',{headers})).json()).data.quote_requests;
+  const count=async()=> (await(await request.get('http://127.0.0.1:18012/api/v1/market-data/session-policy',{headers})).json()).data.quote_requests;
   const initial=await count();await expect.poll(count,{timeout:22000}).toBeGreaterThan(initial);
   await page.getByRole('button',{name:'Refresh quotes',exact:true}).click();await expect.poll(count).toBeGreaterThan(initial+1);
   await page.getByRole('button',{name:'Intraday research',exact:true}).click();

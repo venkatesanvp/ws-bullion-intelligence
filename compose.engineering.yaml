@@ -1,7 +1,7 @@
-name: bullion-mvp05
+name: bullion-mvp06
 services:
   db:
-    image: bullion-mvp05-db:engineering
+    image: bullion-mvp06-db:engineering
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?Run scripts/configure_local.py}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/configure_local.py}
@@ -38,7 +38,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    image: bullion-mvp05-api:engineering
+    image: bullion-mvp06-api:engineering
   api:
     build:
       context: .
@@ -76,9 +76,9 @@ services:
       MARKET_SESSION_MAX_REQUESTS: ${MARKET_SESSION_MAX_REQUESTS:-8}
       MARKET_SESSION_MAX_ROWS: ${MARKET_SESSION_MAX_ROWS:-100000}
       MARKET_PROVIDER_DAILY_BUDGET: ${MARKET_PROVIDER_DAILY_BUDGET:-10000}
-      ALLOWED_ORIGINS: http://127.0.0.1:15173,http://localhost:15173
+      ALLOWED_ORIGINS: http://127.0.0.1:15183,http://localhost:15183
     ports:
-    - 127.0.0.1:18000:8000
+    - 127.0.0.1:18010:8000
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -92,7 +92,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
-    image: bullion-mvp05-api:engineering
+    image: bullion-mvp06-api:engineering
   ui:
     read_only: true
     cap_drop:
@@ -102,25 +102,25 @@ services:
     build:
       context: frontend
       args:
-        VITE_API_ROOT: http://127.0.0.1:18000/api/v1
+        VITE_API_ROOT: http://127.0.0.1:18010/api/v1
     ports:
-    - 127.0.0.1:15173:5173
+    - 127.0.0.1:15183:5173
     depends_on:
       api:
         condition: service_healthy
-    image: bullion-mvp05-ui:engineering
+    image: bullion-mvp06-ui:engineering
     environment:
-      LOCAL_API_ORIGIN: http://127.0.0.1:18000
+      LOCAL_API_ORIGIN: http://127.0.0.1:18010
   test-db:
     profiles:
     - test
-    image: bullion-mvp05-db:engineering
+    image: bullion-mvp06-db:engineering
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: bullion_test
     ports:
-    - 127.0.0.1:15433:5432
+    - 127.0.0.1:15443:5432
     tmpfs:
     - /var/lib/postgresql
     healthcheck:

@@ -1,4 +1,7 @@
 import {useEffect,useRef,useState} from 'react';
+import IndicatorVisibility from './IndicatorVisibility';
+import type {Dispatch,SetStateAction} from 'react';
+import {useResearchPreference} from './researchPreferences';
 import {createChart,createSeriesMarkers,CandlestickSeries,HistogramSeries,LineSeries,ColorType,TickMarkType,type IChartApi,type ISeriesMarkersPluginApi,type ISeriesApi,type Time,type MouseEventParams} from 'lightweight-charts';
 import type {TechnicalResult} from './technicalTypes';
 import {exchangeTime} from './api';
@@ -8,10 +11,10 @@ const NO_ENDPOINTS:ForecastEndpoint[]=[];
 const colors={SMA:'#356b97',EMA:'#267b67',upper:'#9d7228',lower:'#9d7228',middle:'#b5a175',RSI:'#9b79c9',MACD:'#4787b7',signal:'#d88a50',ATR:'#7e995f'};
 const key=(t:Time):string=>typeof t==='number'?new Date(t*1000).toISOString():typeof t==='string'?t:`${t.year}-${String(t.month).padStart(2,'0')}-${String(t.day).padStart(2,'0')}`;
 type PriceSeries=ISeriesApi<'Candlestick'>;type Line=ISeriesApi<'Line'>;
-export default function LightweightResearchChart({result,endpoints=NO_ENDPOINTS,onUnavailable}:{result:TechnicalResult;endpoints?:ForecastEndpoint[];onUnavailable?:(message:string)=>void}){
+export default function LightweightResearchChart({result,endpoints=NO_ENDPOINTS,onUnavailable,visibility}:{result:TechnicalResult;endpoints?:ForecastEndpoint[];visibility?:{hidden:string[];setHidden:Dispatch<SetStateAction<string[]>>};onUnavailable?:(message:string)=>void}){
  const host=useRef<HTMLDivElement>(null),chart=useRef<IChartApi|null>(null),state=useRef<{candles:PriceSeries;close:Line;volume:ISeriesApi<'Histogram'>;histogram:ISeriesApi<'Histogram'>;lines:Line[]}|null>(null),identity=useRef('');
  const [selected,setSelected]=useState<string|null>(null),[problem,setProblem]=useState(''),[range,setRange]=useState(''),[theme,setTheme]=useState<'light'|'dark'>('light');
- const [hidden,setHidden]=useState<string[]>([]);const daily=result.timeframe==='1d';const fallback=useRef(onUnavailable);fallback.current=onUnavailable;
+ const [storedHidden,setStoredHidden]=useResearchPreference<string[]>('chartHiddenIndicators',[]);const hidden=visibility?.hidden||storedHidden,setHidden=visibility?.setHidden||setStoredHidden;const daily=result.timeframe==='1d';const fallback=useRef(onUnavailable);fallback.current=onUnavailable;
  useEffect(()=>{
   const node=host.current;if(!node)return;let c:IChartApi|undefined,frame:number|undefined;let alive=true;
   const crosshair=(event:MouseEventParams<Time>)=>{if(frame!==undefined)cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{if(alive)setSelected(event.time===undefined?null:key(event.time));});};
@@ -70,7 +73,7 @@ export default function LightweightResearchChart({result,endpoints=NO_ENDPOINTS,
  const current=result.candles.find(r=>daily?r.time===selected:new Date(r.time).toISOString()===selected);
  function zoom(factor:number){const scale=chart.current?.timeScale(),v=scale?.getVisibleLogicalRange();if(!scale||!v)return;const mid=(v.from+v.to)/2,half=(v.to-v.from)*factor/2;scale.setVisibleLogicalRange({from:mid-half,to:mid+half});}
  return <figure className="research-figure lightweight-research" data-theme={theme}><div className="range-bar"><button onClick={()=>zoom(.7)}>Zoom in chart</button><button onClick={()=>zoom(1.4)}>Zoom out chart</button><button onClick={()=>chart.current?.timeScale().fitContent()}>Reset chart range</button><label>Chart theme<select aria-label="Chart theme" value={theme} onChange={e=>setTheme(e.target.value as 'light'|'dark')}><option value="light">Light</option><option value="dark">Dark</option></select></label><span role="status">{range}</span></div>
-  <fieldset className="chart-indicators"><legend>Visible chart indicators</legend>{['SMA','EMA','DONCHIAN','RSI','MACD','ATR'].filter(n=>result.indicators[n]).map(n=><label className="check" key={n}><input type="checkbox" checked={!hidden.includes(n)} onChange={e=>setHidden(old=>e.target.checked?old.filter(x=>x!==n):[...old,n])}/>{n}</label>)}</fieldset>
+  {!visibility&&<IndicatorVisibility result={result} hidden={hidden} setHidden={setHidden}/>}
   <div ref={host} role="img" aria-label={result.symbol+' Lightweight '+result.timeframe+' candlestick chart'} className="lightweight-canvas"/>
   {!result.candles.length&&<p className="empty">No completed price observations to chart.</p>}
   {result.candles.some(r=>r.open===null||r.high===null||r.low===null)&&<p className="notice warning">Some observations have close only. Missing OHLC is not fabricated; exact close points remain visible.</p>}

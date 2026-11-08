@@ -4,8 +4,8 @@ import { randomUUID } from 'node:crypto';
 test('synthetic listing → qualification → import → persisted history → watchlist', async ({ page, request }) => {
   const token = process.env.TEST_APP_TOKEN;
   if (!process.env.TEST_DATABASE_URL || !token) throw new Error('TEST_DATABASE_URL and TEST_APP_TOKEN must be configured; no production fallback.');
-  const auth = { Authorization: 'Bearer ' + token, Origin: 'http://127.0.0.1:15174' };
-  const root = 'http://127.0.0.1:18001/api/v1';
+  const auth = { Authorization: 'Bearer ' + token, Origin: 'http://127.0.0.1:15184' };
+  const root = 'http://127.0.0.1:18011/api/v1';
   const suffix = randomUUID().slice(0, 8).toUpperCase();
   const symbol = 'SYNTH_' + suffix;
   await page.goto('/');

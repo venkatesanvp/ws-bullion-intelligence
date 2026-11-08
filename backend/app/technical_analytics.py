@@ -18,7 +18,7 @@ class TechnicalParameters(Strict):
     macd_signal: int = Field(default=9, strict=True, ge=1, le=9999)
     donchian_n: int = Field(default=20, strict=True, ge=1, le=9999)
     sma_n: int = Field(default=20, strict=True, ge=1, le=10000)
-    ema_n: int = Field(default=37, strict=True, ge=1, le=10000)
+    ema_n: int = Field(default=20, strict=True, ge=1, le=10000)
     rsi_n: int = Field(default=14, strict=True, ge=2, le=9999)
 
     @model_validator(mode="after")

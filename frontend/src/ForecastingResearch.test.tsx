@@ -1,4 +1,4 @@
-import {useEffect} from 'react';
+import {useEffect,StrictMode} from 'react';
 import {fireEvent,render,screen,within,waitFor} from '@testing-library/react';
 import {it,expect,vi} from 'vitest';
 import ForecastingResearch from './ForecastingResearch';
@@ -12,13 +12,13 @@ const ctx:ForecastContext={instrument:{instrument_id:instrument.id,symbol:instru
 function output(model:string):ForecastOutput{return{forecast_id:'synthetic-'+model,model:{model_id:model,version:'synthetic-v1',lifecycle:'SYNTHETIC'},instrument:{symbol:instrument.symbol,currency:'INR'},horizon:5,origin_session:'2026-11-05',target_session:'2026-11-12',created_at:'2026-11-06T10:00:00Z',cutoff:'2026-11-06T10:00:00Z',dataset_fingerprint:'synthetic-fingerprint',predicted_price:model==='B03'?null:'101.123456789012',predicted_return:model==='B03'?null:'0.011234567890',session_volatility:model==='B03'?'0.01':null,horizon_volatility:model==='B03'?'0.022360679775':null,annualized_volatility:null,data_quality:'QUALIFIED_SYNTHETIC',calibration_status:'NOT_SUPPORTED',warnings:['SYNTHETIC_TEST_ONLY'],provenance:{source_id:source.id,source_version:'synthetic-v1',known_at:'2026-01-01T00:00:00Z',evidence_ref:'TEST ONLY'}};}
 const run:ForecastRun={run_id:'synthetic-run',status:'AVAILABLE',computed_at:'2026-11-06T10:00:00Z',cutoff:'2026-11-06T10:00:00Z',horizon:5,lookback:60,target_session:'2026-11-12',context:ctx,results:['B01','B02','B03'].map(m=>({model_id:m,status:'AVAILABLE',reason:null,forecast:output(m)})),retention:'PROCESS_MEMORY_ONLY'};
 const evaluation:ForecastEvaluation={status:'AVAILABLE',reason:null,context:ctx,sample_count:20,rows:Array.from({length:20},(_,i)=>({forecast_id:'synthetic-case-'+i,model_id:'B01',origin:'2026-10-01',target:'2026-10-08',cutoff:'2026-10-01T10:00:00Z',created_at:'2026-11-06T10:00:00Z',dataset_fingerprint:'synthetic',status:'MATURED',reason:null,predicted_price:'100',actual_price:'101',price_error:'-1'})),exclusions:[],experiment:{experiment_id:'synthetic-experiment',executed_at:'2026-11-06T10:00:00Z',dataset_fingerprint:'synthetic',classification:'SYNTHETIC_HISTORICAL_REPLAY',requested_period:{start:'2026-10-01',end:'2026-11-01'},frequency_sessions:5,horizon:5,lookback:60,submitted_origins:20,matured_unique_origins:20,overlapping_pairs:0,disjoint_windows:20,warnings:['SYNTHETIC_TEST_ONLY'],evaluations:['B01','B02','B03'].map(m=>({model_id:m,forecast_count:20,failed_count:0,matured_count:20,pending_count:0,unavailable_outcome_count:0,metrics:{price_samples:m==='B03'?0:20,volatility_samples:m==='B03'?20:0,price_mae:m==='B03'?null:'1',price_rmse:m==='B03'?null:'1',return_mae:m==='B03'?null:'0.01',price_bias:m==='B03'?null:'-1',return_bias:m==='B03'?null:'-0.01',directional_hit_rate:m==='B03'?null:'0',volatility_proxy_mae:m==='B03'?'0.01':null,volatility_proxy_rmse:m==='B03'?'0.01':null},benchmark:{paired_samples:m==='B03'?0:20,price_mae_relative_improvement:m==='B03'?null:'0',unavailable_reason:null}}))}};
-function apiFor(handler?:(path:string,options?:RequestInit)=>unknown){return vi.fn(async(path:string,options?:RequestInit)=>{const special=handler?.(path,options);if(special!==undefined)return special;return{data:path.includes('/context?')?ctx:path.endsWith('/evaluate')?evaluation:run};});}
-async function ready(){await screen.findByText(/120 eligible of 120/);await waitFor(()=>expect(screen.getByRole('button',{name:'Run Forecast'})).toBeEnabled());}
+function apiFor(handler?:(path:string,options?:RequestInit)=>unknown){return vi.fn(async(path:string,options?:RequestInit)=>{const special=handler?.(path,options);if(special!==undefined)return special;return{data:path.includes('/context?')?ctx:path.endsWith('/evaluate')?evaluation:path.endsWith('/run')?{...run,horizon:JSON.parse(String(options?.body)).horizon,lookback:JSON.parse(String(options?.body)).lookback,results:run.results.filter(r=>JSON.parse(String(options?.body)).models.includes(r.model_id))}:run};});}
+async function ready(){await screen.findByText(/120 eligible of 120/);fireEvent.click(screen.getByText('6. Evaluate historical performance - Advanced Research'));fireEvent.click(screen.getByText('Inspect history, technical context and source evidence'));await waitFor(()=>expect(screen.getByRole('button',{name:'Generate Forecast'})).toBeEnabled());}
 
 it('sends selected model horizon and lookback and renders exact separate endpoint/volatility outputs',async()=>{
  const calls=apiFor();render(<ForecastingResearch api={calls as unknown as Call} instrument={instrument} source={source} basis="PROVIDER_ADJUSTED"/>);await ready();
  fireEvent.change(screen.getByLabelText('Forecast horizon'),{target:{value:'20'}});fireEvent.change(screen.getByLabelText('Forecast lookback closes'),{target:{value:'20'}});
- fireEvent.click(screen.getByRole('button',{name:'Run Forecast'}));const table=await screen.findByRole('region',{name:'Current baseline forecasts'});expect(within(table).getAllByText('101.123456789012')).toHaveLength(2);
+ fireEvent.click(screen.getByRole('button',{name:'Generate Forecast'}));const table=await screen.findByRole('region',{name:'Current baseline forecasts'});expect(within(table).getAllByText('101.123456789012')).toHaveLength(2);
  expect(within(table).getByText('0.022360679775')).toBeInTheDocument();expect(within(table).getAllByText('Not supported').length).toBeGreaterThanOrEqual(4);
  const options=calls.mock.calls.find(([path])=>path.endsWith('/run'))?.[1];const body=JSON.parse(String(options?.body));expect(body.horizon).toBe(20);expect(body.lookback).toBe(20);expect(body.models).toEqual(['B01','B02','B03']);
  await screen.findByRole('img',{name:'SYNTHGOLD observed prices and forecast endpoints'});const chart=plotted.mock.calls.at(-1)?.[0] as {traces:{name:string;dates:string[];mode?:string}[]};expect(chart.traces.filter(t=>t.name.includes('forecast endpoint')).every(t=>t.dates.length===1&&t.mode==='markers')).toBe(true);
@@ -33,22 +33,22 @@ it('shows historical metrics and all outcomes through a fifteen-row viewport',as
 });
 
 it('changes the forecast instrument independently and reports insufficient data',async()=>{
- const calls=apiFor((path)=>path.includes('/context?')&&path.includes('synthetic-silver')?{data:{...ctx,instrument:{...ctx.instrument,instrument_id:'synthetic-silver',symbol:'SYNTHSILVER'}}}:path.endsWith('/run')?{data:{...run,status:'UNAVAILABLE',context:{...ctx,instrument:{...ctx.instrument,symbol:'SYNTHSILVER'}},results:[{model_id:'B01',status:'UNAVAILABLE',reason:'INSUFFICIENT_LOOKBACK',forecast:null}]}}:undefined);
+ const calls=apiFor((path)=>path.includes('/context?')&&path.includes('synthetic-silver')?{data:{...ctx,instrument:{...ctx.instrument,instrument_id:'synthetic-silver',symbol:'SYNTHSILVER'}}}:path.endsWith('/run')?{data:{...run,status:'UNAVAILABLE',context:{...ctx,instrument:{...ctx.instrument,instrument_id:'synthetic-silver',symbol:'SYNTHSILVER'}},results:['B01','B02','B03'].map(model_id=>({model_id,status:'UNAVAILABLE',reason:'INSUFFICIENT_LOOKBACK',forecast:null}))}}:undefined);
  render(<ForecastingResearch api={calls as unknown as Call} instrument={instrument} source={source} basis="PROVIDER_ADJUSTED"/>);await ready();fireEvent.change(screen.getByLabelText('Forecast ETF'),{target:{value:'synthetic-silver'}});
- await screen.findByText(/SYNTHSILVER \| Synthetic verification/);await waitFor(()=>expect(screen.getByRole('button',{name:'Run Forecast'})).toBeEnabled());fireEvent.click(screen.getByRole('button',{name:'Run Forecast'}));
+ await screen.findByText(/SYNTHSILVER \| Synthetic verification/);await waitFor(()=>expect(screen.getByRole('button',{name:'Generate Forecast'})).toBeEnabled());fireEvent.click(screen.getByRole('button',{name:'Generate Forecast'}));
  expect(await screen.findByRole('region',{name:'Current baseline forecasts'})).toHaveTextContent('requested completed-bar lookback');const body=JSON.parse(String(calls.mock.calls.find(([path])=>path.endsWith('/run'))?.[1]?.body));expect(body.instrument_id).toBe('synthetic-silver');
  expect(screen.getByRole('option',{name:/120 trading sessions/})).toBeDisabled();
 });
 
 it('reports sanitized errors and cancellation with no automatic forecast retry',async()=>{
  const calls=apiFor((path,options)=>path.endsWith('/run')?new Promise((_,reject)=>options?.signal?.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')))):undefined);
- render(<ForecastingResearch api={calls as unknown as Call} instrument={instrument} source={source} basis="PROVIDER_ADJUSTED"/>);await ready();fireEvent.click(screen.getByRole('button',{name:'Run Forecast'}));
+ render(<ForecastingResearch api={calls as unknown as Call} instrument={instrument} source={source} basis="PROVIDER_ADJUSTED"/>);await ready();fireEvent.click(screen.getByRole('button',{name:'Generate Forecast'}));
  fireEvent.click(await screen.findByRole('button',{name:'Cancel research request'}));expect(await screen.findByRole('alert')).toHaveTextContent('cancelled');expect(calls.mock.calls.filter(([path])=>path.endsWith('/run'))).toHaveLength(1);
 });
 
 it('shows source-snapshot errors without displaying request credentials',async()=>{
  const calls=apiFor((path)=>{if(path.endsWith('/run'))throw new ApiError(409,'FORECAST_SOURCE_SNAPSHOT_CHANGED','Reload the changed source snapshot.');});
- render(<ForecastingResearch api={calls as unknown as Call} instrument={instrument} source={source} basis="PROVIDER_ADJUSTED"/>);await ready();fireEvent.click(screen.getByRole('button',{name:'Run Forecast'}));expect(await screen.findByRole('alert')).toHaveTextContent('FORECAST_SOURCE_SNAPSHOT_CHANGED');
+ render(<ForecastingResearch api={calls as unknown as Call} instrument={instrument} source={source} basis="PROVIDER_ADJUSTED"/>);await ready();fireEvent.click(screen.getByRole('button',{name:'Generate Forecast'}));expect(await screen.findByRole('alert')).toHaveTextContent('FORECAST_SOURCE_SNAPSHOT_CHANGED');
 });
 
 
@@ -64,7 +64,7 @@ it('reopens a process-scoped forecast and checks later outcome status',async()=>
 it('runs only selected baseline models and leaves volatility separate',async()=>{
  const calls=apiFor((path,options)=>path.endsWith('/run')?{data:{...run,results:run.results.filter(r=>JSON.parse(String(options?.body)).models.includes(r.model_id))}}:undefined);
  render(<ForecastingResearch api={calls as unknown as Call} instrument={instrument} source={source} basis="PROVIDER_ADJUSTED"/>);await ready();
- fireEvent.click(screen.getByRole('checkbox',{name:/B02 simple-return drift/}));fireEvent.click(screen.getByRole('checkbox',{name:/B03 volatility only/}));fireEvent.click(screen.getByRole('button',{name:'Run Forecast'}));
+ fireEvent.click(screen.getByRole('checkbox',{name:/B02 Historical drift baseline/}));fireEvent.click(screen.getByRole('checkbox',{name:/B03 Historical volatility estimate/}));fireEvent.click(screen.getByRole('button',{name:'Generate Forecast'}));
  const table=await screen.findByRole('region',{name:'Current baseline forecasts'});expect(table.querySelectorAll('tbody tr')).toHaveLength(1);expect(table).toHaveTextContent('B01');
 });
 
@@ -124,4 +124,50 @@ it('inspects technical context through the read-only cached route without acquis
  await waitFor(()=>expect(calls.mock.calls.filter(([path])=>path==='/research/technical')).toHaveLength(1));
  expect(calls.mock.calls.some(([path])=>path==='/market-data/ensure'||path.endsWith('/run'))).toBe(false);
  const body=JSON.parse(String(calls.mock.calls.find(([path])=>path==='/research/technical')?.[1]?.body));expect(body.instrument_id).toBe(instrument.id);expect(body.end).toBe(ctx.last_date);
+});
+
+it('keeps primary context usable when the optional saved-records request stalls',async()=>{
+ const calls=apiFor((p,o)=>p.endsWith('/runs')?new Promise((_,reject)=>o?.signal?.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')))):undefined);
+ render(<ForecastingResearch api={calls as unknown as Call} instrument={instrument} source={source} basis="PROVIDER_ADJUSTED"/>);
+ const button=await screen.findByRole('button',{name:'Generate Forecast'});await waitFor(()=>expect(button).toBeEnabled());
+ expect(screen.getByText('6. Evaluate historical performance - Advanced Research').closest('details')).not.toHaveAttribute('open');
+ expect(calls.mock.calls.some(([p])=>p.endsWith('/run'))).toBe(false);
+ fireEvent.click(button);await screen.findByRole('region',{name:'Current baseline forecasts'});
+});
+
+it('clears the prior forecast on control edits and validates the returned horizon',async()=>{
+ const calls=apiFor((p,o)=>p.endsWith('/run')&&JSON.parse(String(o?.body)).horizon===20?{data:run}:undefined);
+ render(<ForecastingResearch api={calls as unknown as Call} instrument={instrument} source={source} basis="PROVIDER_ADJUSTED"/>);await ready();
+ fireEvent.click(screen.getByRole('button',{name:'Generate Forecast'}));await screen.findByRole('region',{name:'Current baseline forecasts'});
+ fireEvent.change(screen.getByLabelText('Forecast horizon'),{target:{value:'20'}});expect(screen.queryByRole('region',{name:'Current baseline forecasts'})).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Generate Forecast'}));expect(await screen.findByRole('alert')).toHaveTextContent('response differs');
+ expect(calls.mock.calls.filter(([p])=>p==='/market-data/ensure')).toHaveLength(0);
+});
+
+it('shows a useful empty model selection state without sending a forecast request',async()=>{
+ const calls=apiFor();render(<ForecastingResearch api={calls as unknown as Call} instrument={instrument} source={source} basis="PROVIDER_ADJUSTED"/>);await ready();
+ for(const n of [/B01 Last-close/,/B02 Historical drift/,/B03 Historical volatility/])fireEvent.click(screen.getByRole('checkbox',{name:n}));
+ expect(screen.getByRole('button',{name:'Generate Forecast'})).toBeDisabled();expect(screen.getByText(/Select at least one baseline/)).toBeInTheDocument();expect(calls.mock.calls.some(([p])=>p.endsWith('/run'))).toBe(false);
+});
+
+it('keeps initial context loading alive when a user edits settings before it arrives',async()=>{
+ let release!:(v:unknown)=>void;const pending=new Promise(resolve=>{release=resolve;});let initialSignal:AbortSignal|null|undefined;
+ const calls=apiFor((p,o)=>{if(p.includes('/context?')){initialSignal=o?.signal;return pending;}return undefined;});
+ render(<ForecastingResearch api={calls as unknown as Call} instrument={instrument} source={source} basis="PROVIDER_ADJUSTED"/>);
+ fireEvent.change(screen.getByLabelText('Forecast lookback closes'),{target:{value:'20'}});fireEvent.change(screen.getByLabelText('Forecast horizon'),{target:{value:'20'}});
+ expect(initialSignal?.aborted).toBe(false);release({data:ctx});await waitFor(()=>expect(screen.getByRole('button',{name:'Generate Forecast'})).toBeEnabled());
+ fireEvent.click(screen.getByRole('button',{name:'Generate Forecast'}));await screen.findByRole('region',{name:'Current baseline forecasts'});const body=JSON.parse(String(calls.mock.calls.find(([p])=>p.endsWith('/run'))?.[1]?.body));expect(body.lookback).toBe(20);expect(body.horizon).toBe(20);
+});
+
+it('keeps context failure visible through edits and recovers only on explicit reload',async()=>{
+ let limited=true;const calls=apiFor(p=>p.includes('/context?')&&limited?Promise.reject(new ApiError(429,'FORECAST_RATE_LIMITED','Research limit reached.')):undefined);
+ render(<ForecastingResearch api={calls as unknown as Call} instrument={instrument} source={source} basis="PROVIDER_ADJUSTED"/>);expect(await screen.findByRole('alert')).toHaveTextContent('FORECAST_RATE_LIMITED');
+ fireEvent.change(screen.getByLabelText('Forecast lookback closes'),{target:{value:'20'}});expect(screen.getByRole('alert')).toHaveTextContent('FORECAST_RATE_LIMITED');expect(screen.getByRole('button',{name:'Generate Forecast'})).toBeDisabled();expect(calls.mock.calls.filter(([p])=>p.includes('/context?'))).toHaveLength(1);
+ limited=false;fireEvent.click(screen.getByRole('button',{name:'Reload cached forecast context'}));await waitFor(()=>expect(screen.getByRole('button',{name:'Generate Forecast'})).toBeEnabled());expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('deduplicates in-flight context loading under StrictMode without weakening the backend gate',async()=>{
+ let release!:(v:unknown)=>void;const pending=new Promise(resolve=>{release=resolve;});const calls=apiFor(p=>p.includes('/context?')?pending:undefined);
+ render(<StrictMode><ForecastingResearch api={calls as unknown as Call} instrument={instrument} source={source} basis="PROVIDER_ADJUSTED"/></StrictMode>);
+ fireEvent.change(screen.getByLabelText('Forecast lookback closes'),{target:{value:'20'}});expect(calls.mock.calls.filter(([p])=>p.includes('/context?'))).toHaveLength(1);release({data:ctx});await waitFor(()=>expect(screen.getByRole('button',{name:'Generate Forecast'})).toBeEnabled());expect(calls.mock.calls.filter(([p])=>p.includes('/context?'))).toHaveLength(1);
 });

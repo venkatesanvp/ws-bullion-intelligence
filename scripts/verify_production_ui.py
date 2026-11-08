@@ -1,4 +1,4 @@
-"""MVP05 built-image UI smoke, synthetic fixture API, engineering-only ports."""
+"""MVP06 built-image UI smoke, synthetic fixture API, engineering-only ports."""
 
 import subprocess
 import time
@@ -10,10 +10,10 @@ r = pathlib.Path(__file__).resolve().parents[1]
 engineering.validate()
 env = engineering.environment()
 env.update(
-    DATABASE_URL="postgresql+psycopg://engineering:synthetic-engineering-only@127.0.0.1:15433/bullion_test",
-    TEST_DATABASE_URL="postgresql+psycopg://engineering:synthetic-engineering-only@127.0.0.1:15433/bullion_test",
+    DATABASE_URL="postgresql+psycopg://engineering:synthetic-engineering-only@127.0.0.1:15443/bullion_test",
+    TEST_DATABASE_URL="postgresql+psycopg://engineering:synthetic-engineering-only@127.0.0.1:15443/bullion_test",
     LOCAL_APP_TOKEN="synthetic-test-token-not-a-real-secret-000000",
-    ALLOWED_ORIGINS="http://127.0.0.1:15173",
+    ALLOWED_ORIGINS="http://127.0.0.1:15183",
     PYTHONPATH=str(r / "backend"),
 )
 with (r / "artifacts/production-fixture.log").open("w") as log:
@@ -26,7 +26,7 @@ with (r / "artifacts/production-fixture.log").open("w") as log:
             "--host",
             "127.0.0.1",
             "--port",
-            "18002",
+            "18012",
             "--no-access-log",
         ],
         cwd=r,
@@ -40,7 +40,7 @@ with (r / "artifacts/production-fixture.log").open("w") as log:
             if p.poll() is not None:
                 raise RuntimeError("Synthetic test app failed")
             try:
-                with urllib.request.urlopen("http://127.0.0.1:18002/api/v1/health/live", timeout=2):
+                with urllib.request.urlopen("http://127.0.0.1:18012/api/v1/health/live", timeout=2):
                     break
             except Exception:
                 time.sleep(0.5)

@@ -17,8 +17,8 @@ export function ResearchQuality({ meta }: { meta: SeriesMeta }) {
   </section>;
 }
 
-export class ChartBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+export class ChartBoundary extends Component<{ children: ReactNode; label?: string }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
-  render() { return this.state.failed ? <p role="alert" className="notice error">The local chart module is unavailable. Exact values remain in the table.</p> : this.props.children; }
+  render() { return this.state.failed ? <p role="alert" className="notice error">{this.props.label||'The local chart module'} is unavailable. Other sections remain accessible. <button onClick={()=>this.setState({failed:false})}>Try this section again</button></p> : this.props.children; }
 }

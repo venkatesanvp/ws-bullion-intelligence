@@ -11,8 +11,10 @@ const candles=Array.from({length:45},(_,i)=>({time:new Date(Date.UTC(2026,0,1+i)
 const bundle=(fields:Record<string,string|null>)=>({algorithm_version:'synthetic-test',values:candles.map(c=>({time:c.time,reason:null,...fields}))});
 const result:TechnicalResult={instrument_id:instrument.id,symbol:instrument.symbol,timeframe:'1d',parameters:defaultTechnical,indicators:{ATR:bundle({value:'2.333333333333'}),MACD:bundle({macd:'0.666666666667',signal:'0.583333333333',histogram:'0.083333333333'}),DONCHIAN:bundle({upper:'13.000000000000',lower:'9.000000000000',middle:'11.000000000000'}),SMA:bundle({value:'10'}),EMA:bundle({value:'10'}),RSI:bundle({value:'50'})},candles,status:'AVAILABLE',input_fingerprint:'synthetic-fingerprint',computed_at:'2026-11-06T12:00:00Z',warmup_bars:30,source:'SYNTHETIC TEST',source_qualification:source.qualification,price_basis:'RAW_CLOSE',freshness:'UNASSESSED',warnings:['NO_FORECAST_OR_TRADING_SIGNAL']};
 
+function snapshot(options?:RequestInit){const body=options?.body?JSON.parse(String(options.body)):{};const ref={instrument_id:instrument.id,source_id:source.id,price_basis:body.basis||'RAW_CLOSE',interval:'1d',revision:1,profile_digest:'test'};return {data:{...result,price_basis:ref.price_basis,parameters:body.parameters||defaultTechnical,series_ref:ref},meta:{series_ref:ref,source:{label:'SYNTHETIC',data_class:'SYNTHETIC_TEST'},coverage:{dataset_count:45,dataset_first_date:'2026-01-01',dataset_last_date:'2026-02-14'},quality:{flags:[],missing_session_count:0,known_break_dates:[],continuity:'UNASSESSED'},freshness:{status:'UNASSESSED',reason:'UNASSESSED'},limitations:[]}};}
+
 it('displays exact backend technical values, preserves fifteen-row paging and defaults to the financial renderer and offers Plotly fallback',async()=>{
- const api=vi.fn(async()=>({data:result})) as unknown as Call;
+ const api=vi.fn(async(_path?:string,options?:RequestInit)=>snapshot(options)) as unknown as Call;
  render(<TechnicalWorkbench api={api} instrument={instrument} source={source} basis="RAW_CLOSE"/>);
  const region=await screen.findByRole('region',{name:'Exact technical values'});
  expect(within(region).getAllByRole('row')).toHaveLength(16);
@@ -23,7 +25,7 @@ it('displays exact backend technical values, preserves fifteen-row paging and de
 });
 
 it('sends explicit reviewed parameters and rejects invalid MACD ordering without another call',async()=>{
- const calls=vi.fn(async()=>({data:result}));const api=calls as unknown as Call;
+ const calls=vi.fn(async(_path?:string,options?:RequestInit)=>snapshot(options));const api=calls as unknown as Call;
  render(<TechnicalWorkbench api={api} instrument={instrument} source={source} basis="RAW_CLOSE"/>);await screen.findByRole('region',{name:'Exact technical values'});
  fireEvent.change(screen.getByLabelText('ATR period'),{target:{value:'3'}});fireEvent.click(screen.getByRole('button',{name:'Apply technical settings'}));
  await waitFor(()=>expect(calls).toHaveBeenCalledTimes(2));
@@ -41,7 +43,7 @@ it('reports sanitized local errors and never presents a forecast as a calculated
 
 it('keeps acquisition basis-specific and reports retrieval failures while preserving exact cached results',async()=>{
  const dhan={...source,source_kind:'DHANHQ' as const,qualification:'TRANSIENT_OWNER_AUTHORIZED_UNQUALIFIED',permitted_uses:{retrieval:true,analysis:true,display:true,storage:false},profile:{...source.profile,data_class:'REAL_MARKET'}};
- const calls=vi.fn(async(path:string)=>({data:path==='/market-data/ensure'?{error:'TOKEN_EXPIRED',status:'PARTIAL'}:result}));
+ const calls=vi.fn(async(path:string,options?:RequestInit)=>path==='/market-data/ensure'?{data:{error:'TOKEN_EXPIRED',status:'PARTIAL'}}:snapshot(options));
  const first=render(<TechnicalWorkbench api={calls as unknown as Call} instrument={instrument} source={dhan} basis="RAW_CLOSE"/>);
  await screen.findByRole('region',{name:'Exact technical values'});expect(calls.mock.calls.every(([path])=>path==='/research/technical')).toBe(true);first.unmount();calls.mockClear();
  render(<TechnicalWorkbench api={calls as unknown as Call} instrument={instrument} source={dhan} basis="PROVIDER_ADJUSTED"/>);

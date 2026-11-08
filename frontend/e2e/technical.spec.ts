@@ -3,9 +3,9 @@ import {expect,test} from '@playwright/test';
 test('technical daily and intraday values, native chart panes/crosshair/zoom/pan and existing chart fallback',async({page,request})=>{
  test.setTimeout(90000);await page.setViewportSize({width:1280,height:1200});
  const token=process.env.TEST_APP_TOKEN;if(!token)throw Error('Synthetic local token required');const headers={Authorization:'Bearer '+token};
- const session=(await(await request.get('http://127.0.0.1:18002/api/v1/transient-session',{headers})).json()).data;
+ const session=(await(await request.get('http://127.0.0.1:18012/api/v1/transient-session',{headers})).json()).data;
  const item=session.instruments.find((i:{symbol:string})=>i.symbol==='TATAGOLD');
- await page.addInitScript(()=>{const original=window.fetch.bind(window);window.fetch=(input,init)=>original(typeof input==='string'?input.replace('127.0.0.1:18001/','127.0.0.1:18002/'):input,init);});
+ await page.addInitScript(()=>{const original=window.fetch.bind(window);window.fetch=(input,init)=>original(typeof input==='string'?input.replace('127.0.0.1:18011/','127.0.0.1:18012/'):input,init);});
  await page.goto('/');await page.getByLabel('Local application token').fill(token);await page.getByRole('button',{name:/Open Bullion Workspace/}).click();
  await page.getByRole('combobox',{name:'ETF listing',exact:true}).selectOption(item.instrument_id);await page.getByRole('combobox',{name:'Data source',exact:true}).selectOption(session.source_id);await page.getByRole('combobox',{name:'Price basis',exact:true}).selectOption('PROVIDER_ADJUSTED');
  await page.getByRole('button',{name:'Research dashboard',exact:true}).click();await page.getByRole('button',{name:'Technical analytics',exact:true}).click();

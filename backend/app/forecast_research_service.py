@@ -67,6 +67,18 @@ class ResearchOptions(Strict):
         return self
 
 
+def display_changes(result):
+    if result.predicted_price is None:
+        return None, None
+    with context():
+        origin = result.last_observed_close
+        if origin <= 0:
+            raise ForecastError("INVALID_ORIGIN_PRICE")
+        return derived(result.predicted_price - origin), derived(
+            100 * (result.predicted_price / origin - 1)
+        )
+
+
 class ForecastResearchService:
     def __init__(self, market, *, calendar_override=None, monotonic=time.monotonic, timeout=30):
         self.market = market
@@ -255,12 +267,17 @@ class ForecastResearchService:
                     shared_snapshot = build_snapshot(view.dataset, q)
                 snapshot = shared_snapshot
                 result = get_model(model).predict(snapshot, q, created_at=now)
+                absolute_change, percentage_change = display_changes(result)
                 results.append(
                     {
                         "model_id": model,
                         "status": "AVAILABLE",
                         "reason": None,
                         "forecast": result.model_dump(mode="json"),
+                        "display_change": {
+                            "absolute_change": absolute_change,
+                            "percentage_change": percentage_change,
+                        },
                     }
                 )
             except ForecastError as exc:
@@ -510,11 +527,13 @@ class ForecastResearchService:
             for r in original["results"]
         ):
             changed = True
-        original["context"]["history"] = chart_history([
-            p
-            for p in view.dataset.observations
-            if not changed and p.session_date in {d for d, _, _ in refs[-120:]}
-        ])
+        original["context"]["history"] = chart_history(
+            [
+                p
+                for p in view.dataset.observations
+                if not changed and p.session_date in {d for d, _, _ in refs[-120:]}
+            ]
+        )
         tracking = []
         for r in original["results"]:
             check()

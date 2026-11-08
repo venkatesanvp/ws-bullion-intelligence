@@ -1,138 +1,21 @@
-import FinancialChart from './FinancialChart';
-import {dailyChart} from './chartAdapters';
 import TechnicalWorkbench from './TechnicalWorkbench';
 import ForecastingResearch from './ForecastingResearch';
-import DataViewport, {DATA_PAGE_SIZE} from './DataViewport';
 import ReconciliationPanel from './ReconciliationPanel';
 import MarketSnapshot from './MarketSnapshot';
 import IntradayDashboard from './IntradayDashboard';
-import { supportsMarketSession } from './api';
-import { useMarketRefresh } from './useMarketRefresh';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError, canResearch, ensureProviderHistory, acquisitionMessage, hasLiveRetrieval, Call, IndicatorResult, Instrument, PriceChartResult, SeriesMeta, Source } from './api';
-import { ChartBoundary, DataClass, ResearchField as Field, ResearchQuality, researchProblem } from './ResearchShared';
-type Method = 'SMA' | 'EMA' | 'RSI';
-type Settings = { start: string; end: string; asOf: string; SMA: boolean; EMA: boolean; RSI: boolean; smaN: string; emaN: string; rsiN: string };
-const empty: Settings = { start: '', end: '', asOf: '', SMA: false, EMA: false, RSI: false, smaN: '', emaN: '', rsiN: '' };
-const methods: Method[] = ['SMA', 'EMA', 'RSI'];
-const period = (settings: Settings, method: Method) => settings[method === 'SMA' ? 'smaN' : method === 'EMA' ? 'emaN' : 'rsiN'];
-type Calculation = { method: Method; n: number; result?: IndicatorResult; problem?: string };
-type Loaded = { chart: PriceChartResult; meta: SeriesMeta; calculations: Calculation[] };
-const sameRef = (a: PriceChartResult['series_ref'], b: IndicatorResult['series_ref']) => Number.isSafeInteger(a.revision) && Number.isSafeInteger(b.revision) && a.instrument_id === b.instrument_id && a.source_id === b.source_id && a.price_basis === b.price_basis && a.interval === b.interval && a.revision === b.revision && a.profile_digest === b.profile_digest;
-
-function DailyDashboard({ api, instrument, source, basis }: { api: Call; instrument?: Instrument; source?: Source; basis: string }) {
-  const [draft, setDraft] = useState<Settings>(empty);
-  const [loaded, setLoaded] = useState<Loaded | null>(null);
-  const [problem, setProblem] = useState('');
-  const [acquisition, setAcquisition] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [shownRows, setShownRows] = useState(DATA_PAGE_SIZE);
-  const generation = useRef(0), abort = useRef<AbortController | null>(null);
-  const load = useCallback(async (settings: Settings) => {
-    const current = ++generation.current;
-    abort.current?.abort(); const controller = new AbortController(); abort.current = controller;
-    setProblem(''); setAcquisition(''); setShownRows(DATA_PAGE_SIZE);
-    if (!instrument || !source || !canResearch(source)) { setBusy(false); return; }
-    for (const method of methods.filter(m => settings[m])) {
-      const raw = period(settings, method), n = Number(raw);
-      if (!/^\d+$/.test(raw) || !Number.isInteger(n) || n < (method === 'RSI' ? 2 : 1) || n > 10000) { setBusy(false); setProblem(method + ': enter an explicit supported integer lookback.'); return; }
-    }
-    setBusy(true);
-    const params = new URLSearchParams({ source_id: source.id, basis });
-    if (settings.start) params.set('start', settings.start); if (settings.end) params.set('end', settings.end);
-    if (settings.asOf) params.set('assessment_as_of', settings.asOf);
-    const path = '/instruments/' + instrument.id;
-    try {
-      let failed = false;
-      try {
-        const warmup = Math.max(0, ...methods.filter(m => settings[m]).map(m => Number(period(settings, m)) + (m === 'RSI' ? 1 : 0)));
-        const update = basis === 'PROVIDER_ADJUSTED' ? await ensureProviderHistory(api, instrument, source, settings.start, settings.end, controller.signal, warmup) : null;
-        if (current !== generation.current) return;
-        setAcquisition(acquisitionMessage(update)); failed = Boolean(update?.error);
-      } catch (error) { if (controller.signal.aborted) throw error; setProblem(researchProblem(error)); failed = true; }
-      const price = await api<PriceChartResult>(path + '/chart?' + params, { signal: controller.signal });
-      if (!price.meta || !Number.isSafeInteger(price.data.series_ref.revision)) throw new Error('Research snapshot identity is unavailable. Reload the series.');
-      const calculations = await Promise.all(methods.filter(m => settings[m]).map(async method => {
-        const n = Number(period(settings, method));
-        const query = new URLSearchParams(params); query.set('indicator', method); query.set('n', String(n));
-        try { return { method, n, result: (await api<IndicatorResult>(path + '/indicators?' + query, { signal: controller.signal })).data }; }
-        catch (error) {
-          if (controller.signal.aborted) throw error;
-          return { method, n, problem: researchProblem(error), ...(error instanceof ApiError && error.payload?.data ? { result: error.payload.data as IndicatorResult } : {}) };
-        }
-      }));
-      if (current !== generation.current || controller.signal.aborted) return;
-      if (calculations.some(c => c.result && (c.result.indicator_id !== c.method || c.result.n !== c.n))) throw new Error('RESEARCH_IDENTITY_MISMATCH: indicator parameters differ from the request. Reload research.');
-      if (calculations.some(c => c.result && !sameRef(price.data.series_ref, c.result.series_ref))) throw new Error('SNAPSHOT_CHANGED: prices and indicators changed during loading. Reload to use one version.');
-      if (failed && price.data.points.length === 0) return;
-      setLoaded({ chart: price.data, meta: price.meta as unknown as SeriesMeta, calculations });
-    } catch (error) {
-      if (current === generation.current && !controller.signal.aborted) {
-        const message = researchProblem(error); setProblem(message);
-        if (/SNAPSHOT_CHANGED|RESEARCH_IDENTITY_MISMATCH/.test(message)) setLoaded(null);
-      }
-    }
-    finally { if (current === generation.current) setBusy(false); }
-  }, [api, instrument, source, basis]);
-  useEffect(() => { setDraft(empty); void load(empty); return () => { ++generation.current; abort.current?.abort(); }; }, [load]);
-  const autoRefresh = useCallback(() => { if (!busy) void load(draft); }, [load, busy, draft]);
-  useMarketRefresh(api, source, autoRefresh);
-  function rangeEdit(key: 'start' | 'end' | 'asOf', value: string) { ++generation.current; abort.current?.abort(); setBusy(false); setLoaded(null); setProblem(''); setDraft(old => ({ ...old, [key]: value })); }
-  if (!instrument || !source) return <div className="empty">Select a configured ETF listing and source to open the research dashboard.</div>;
-  if (!canResearch(source)) return <div className="empty">This source is {source.qualification.toLowerCase()}. Review its usage evidence before research.</div>;
-  const calculations = loaded?.calculations.filter(c => draft[c.method] && Number(period(draft, c.method)) === c.n) || [];
-  const price = loaded?.chart;
-  const valueMaps = new Map(calculations.map(c => [c.method, new Map(c.result?.values.map(v => [v.trading_date, v]) || [])]));
-  return <div className="research-dashboard">
-    <section className="card"><div className="eyebrow">DESCRIPTIVE RESEARCH</div><h2>{instrument.symbol} research dashboard</h2>
-      <DataClass synthetic={source.profile.data_class === 'SYNTHETIC_TEST'}/>
-      <p>{instrument.name} | {instrument.metal} | {instrument.currency} | {basis}. No investment recommendations.</p>
-      <form onSubmit={e => { e.preventDefault(); void load(draft); }}>
-        <div className="range-bar"><Field label="Research from"><input type="date" value={draft.start} onChange={e => rangeEdit('start', e.target.value)}/></Field>
-          <Field label="Research through"><input type="date" value={draft.end} onChange={e => rangeEdit('end', e.target.value)}/></Field>
-          <Field label="Research assessment as of (optional ISO + timezone)"><input value={draft.asOf} onChange={e => rangeEdit('asOf', e.target.value)}/></Field></div>
-        <fieldset className="indicator-controls"><legend>Indicators - explicit observed-bar lookbacks</legend>{methods.map(method => <div key={method}>
-          <label className="check"><input type="checkbox" checked={draft[method]} onChange={e => setDraft(old => ({ ...old, [method]: e.target.checked }))}/>{method === 'RSI' ? 'Show Wilder RSI' : 'Show ' + method}</label>
-          <Field label={method + ' lookback'}><input type="number" min={method === 'RSI' ? 2 : 1} max={10000} step={1} required={draft[method]} disabled={!draft[method]} value={period(draft, method)} onChange={e => setDraft(old => ({ ...old, [method === 'SMA' ? 'smaN' : method === 'EMA' ? 'emaN' : 'rsiN']: e.target.value }))}/></Field>
-        </div>)}</fieldset>
-        <p className="footnote">Blank dates select available history. Apply settings to calculate newly enabled periods. EMA/RSI use the complete eligible prefix; known discontinuities restart warm-up. No missing prices are filled.</p>
-        <button className="primary" disabled={busy}>Apply research settings</button>
-      </form>
-    </section>
-    {busy && <p role="status" className="loading">{hasLiveRetrieval(source) ? 'Checking coverage and downloading missing historical observations; then recalculating research.' : 'Loading research evidence.'}</p>}
-    {acquisition && <p role="status" className="notice">{acquisition}</p>}
-    {problem && <div role="alert" className="notice error">{problem}<button onClick={() => void load(draft)}>Reload research</button></div>}
-    {loaded && <>
-      <ResearchQuality meta={loaded.meta}/>
-      {!price?.points.length ? <div className="empty">No observations are available for this research range.</div> : <>
-        <section className="card"><h3>Historical price and overlays</h3><p>{price.points.length} observations | {loaded.meta.coverage.range_first_date} through {loaded.meta.coverage.range_last_date}</p>
-          <ChartBoundary><FinancialChart result={dailyChart(price,instrument.symbol,calculations)} title={instrument.symbol+' price chart'}/></ChartBoundary>
-        </section>
-        {calculations.map(c => <section className="card calculation-summary" key={c.method}><h3>{c.method} / n={c.n}</h3>
-          {c.problem && <p role="alert" className="notice warning">{c.problem}</p>}
-          {c.result && <><p>{c.result.status}{c.result.unavailable_reason ? ': ' + c.result.unavailable_reason : ''} | {c.result.window_unit}</p>
-            <details><summary>{c.method} calculation provenance</summary><p>Algorithm: {c.result.algorithm_version}. Seed dates (first 20): {c.result.seed_dates.slice(0,20).join(', ') || 'Not seeded'}</p><p>Input fingerprint: <code>{c.result.input_fingerprint}</code></p><p>Computed at: {c.result.computed_at}. Derived strings have 12 decimal places; this is serialization precision.</p></details></>}
-        </section>)}
-        <section className="card"><h3>Exact research values</h3><p>{Math.min(shownRows,price.points.length)} of {price.points.length} rows shown. Warm-up and unavailable reasons are retained.</p>
-          <DataViewport className="table-wrap" label="Daily research values"><table><caption>Exact prices and server-calculated indicator values</caption><thead><tr><th>Date</th><th>Close / {instrument.currency}</th>{calculations.map(c => <th key={c.method}>{c.method} ({c.n})</th>)}<th>Source row / discontinuity</th></tr></thead>
-            <tbody>{price.points.slice(0,shownRows).map(point => <tr key={point.observation_id}><td>{point.trading_date}</td><td>{point.close}</td>{calculations.map(c => { const value = valueMaps.get(c.method)?.get(point.trading_date); return <td key={c.method}>{value?.value ?? ('Unavailable: ' + (value?.reason || c.result?.unavailable_reason || c.problem || 'Not calculated'))}</td>; })}<td>{point.batch_id.slice(0,8)} / {point.row_number}{point.break_before ? ' | ' + point.break_before : ''}</td></tr>)}</tbody></table></DataViewport>
-          {shownRows < price.points.length && <button onClick={() => setShownRows(n => n+DATA_PAGE_SIZE)}>Show more research rows</button>}
-        </section>
-      </>}
-    </>}
-  </div>;
-}
-
-
+import {useState} from 'react';
+import {useResearchPreference} from './researchPreferences';
+import {type Call,type Instrument,type Source,canResearch,supportsMarketSession} from './api';
+import {ChartBoundary} from './ResearchShared';
 export default function ResearchDashboard(props:{api:Call;instrument?:Instrument;source?:Source;basis:string}) {
-  const [view,setView]=useState<'daily'|'intraday'|'technical'|'forecast'>('daily');
-  const [revision,setRevision]=useState(0);
-  const [marketOpen,setMarketOpen]=useState(false);
-  if(!props.instrument||!props.source||!canResearch(props.source))return <DailyDashboard {...props}/>;
-  const session=supportsMarketSession(props.source);
-  const synthetic=props.source?.profile.data_class==='SYNTHETIC_TEST';
-  const marketContext=<><MarketSnapshot api={props.api} synthetic={synthetic} onReconciliation={()=>setRevision(r=>r+1)}/><ReconciliationPanel api={props.api} instrument={props.instrument} onChange={()=>setRevision(r=>r+1)}/></>;
-  return <div>{session&&((view==='daily'||view==='intraday')?marketContext:<details className="card" open={marketOpen} onToggle={e=>setMarketOpen(e.currentTarget.open)}><summary>Optional live quotes and reconciliation</summary>{marketOpen&&marketContext}</details>)}<div className="range-bar" role="group" aria-label="Research timeframe"><button aria-pressed={view==='daily'} onClick={()=>setView('daily')}>Daily research</button>{session&&<button aria-pressed={view==='intraday'} onClick={()=>setView('intraday')}>Intraday research</button>}<button aria-pressed={view==='technical'} onClick={()=>setView('technical')}>Technical analytics</button>{session&&<button aria-pressed={view==='forecast'} onClick={()=>setView('forecast')}>Forecasting Research</button>}</div>
-    {view==='forecast'?<ForecastingResearch key={revision} api={props.api} instrument={props.instrument} source={props.source} basis={props.basis}/>:view==='technical'?<TechnicalWorkbench key={revision} api={props.api} instrument={props.instrument} source={props.source} basis={props.basis}/>:view==='daily'?<DailyDashboard key={revision} {...props}/>:<IntradayDashboard key={revision} api={props.api} instrument={props.instrument} synthetic={synthetic}/>}
-  </div>;
+ const [view,setView]=useResearchPreference<'daily'|'intraday'|'technical'|'forecast'>('researchView','daily');
+ const [revision,setRevision]=useState(0),[marketOpen,setMarketOpen]=useState(false);
+ const valid=!!props.instrument&&!!props.source&&canResearch(props.source),session=valid&&supportsMarketSession(props.source!);
+ const identity=[props.instrument?.id,props.source?.id,props.basis,revision].join('|');
+ const context=valid&&session?<><ChartBoundary key={'snapshot'+props.source!.id} label="Market snapshot"><MarketSnapshot api={props.api} synthetic={props.source!.profile.data_class==='SYNTHETIC_TEST'} onReconciliation={()=>setRevision(r=>r+1)}/></ChartBoundary><ChartBoundary label="Reconciliation"><ReconciliationPanel api={props.api} instrument={props.instrument!} onChange={()=>setRevision(r=>r+1)}/></ChartBoundary></>:<p className="empty">Select a supported ETF and permitted DhanHQ source to view market snapshots. Daily research remains available for permitted CSV sources.</p>;
+ return <div className="research-dashboard"><section aria-label="DhanHQ Market Snapshot and reconciliation">{view==='daily'||view==='intraday'?context:<details className="card" open={marketOpen} onToggle={e=>setMarketOpen(e.currentTarget.open)}><summary>DhanHQ Market Snapshot and reconciliation (optional live quotes)</summary><p>Open to inspect live context. Closed sections do not poll or download quotes.</p>{marketOpen&&context}</details>}</section>
+ <div className="range-bar" role="group" aria-label="Research timeframe">{(['daily','intraday','technical','forecast'] as const).map(id=><button key={id} aria-pressed={view===id} onClick={()=>setView(id)}>{({daily:'Daily research',intraday:'Intraday research',technical:'Technical analytics',forecast:'Forecasting Research'})[id]}</button>)}</div>
+ <a href="/user-guide.html" target="_blank" rel="noopener noreferrer">Research user guide</a>
+ {!valid?<div className="empty" role="status">Select an ETF and a source permitted for research. Review source qualification if access is restricted.</div>:<ChartBoundary key={identity+view} label="Selected research view">{view==='forecast'?session?<ForecastingResearch api={props.api} instrument={props.instrument!} source={props.source!} basis={props.basis}/>:<p>Forecasting requires a supported DhanHQ or synthetic source.</p>:view==='technical'?<TechnicalWorkbench api={props.api} instrument={props.instrument!} source={props.source!} basis={props.basis}/>:view==='daily'?<TechnicalWorkbench mode="daily" api={props.api} instrument={props.instrument!} source={props.source!} basis={props.basis}/>:session?<IntradayDashboard api={props.api} instrument={props.instrument!} synthetic={props.source!.profile.data_class==='SYNTHETIC_TEST'}/>:<p>Intraday research requires a supported market source.</p>}</ChartBoundary>}
+ </div>;
 }

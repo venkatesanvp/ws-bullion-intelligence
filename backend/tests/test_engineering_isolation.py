@@ -15,14 +15,14 @@ spec.loader.exec_module(engineering)
 def config():
     services = {
         name: {
-            "image": "bullion-mvp05-"
+            "image": "bullion-mvp06-"
             + ("ui" if name == "ui" else "db" if name in {"db", "test-db"} else "api")
             + ":engineering",
             "environment": {},
         }
         for name in ["db", "test-db", "api", "migrate", "ui"]
     }
-    for name, port in {"api": 18000, "ui": 15173, "test-db": 15433}.items():
+    for name, port in {"api": 18010, "ui": 15183, "test-db": 15443}.items():
         services[name]["ports"] = [{"host_ip": "127.0.0.1", "published": str(port)}]
     for name in ["api", "migrate"]:
         services[name]["environment"]["DATABASE_URL"] = (
@@ -30,10 +30,10 @@ def config():
         )
         services[name]["environment"]["LOCAL_APP_TOKEN"] = engineering.SYNTHETIC["LOCAL_APP_TOKEN"]
     return {
-        "name": "bullion-mvp05",
+        "name": "bullion-mvp06",
         "services": services,
-        "volumes": {"bullion_data": {"name": "bullion-mvp05_bullion_data"}},
-        "networks": {"default": {"name": "bullion-mvp05_default"}},
+        "volumes": {"bullion_data": {"name": "bullion-mvp06_bullion_data"}},
+        "networks": {"default": {"name": "bullion-mvp06_default"}},
     }
 
 

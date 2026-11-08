@@ -15,7 +15,7 @@ test('synthetic one-year provider import feeds charts indicators and both metal 
   const external: string[] = [];
   page.on('request', request => {
     const url = new URL(request.url());
-    if (['http:', 'https:'].includes(url.protocol) && !['http://127.0.0.1:15174', 'http://127.0.0.1:18001'].includes(url.origin)) external.push(request.url());
+    if (['http:', 'https:'].includes(url.protocol) && !['http://127.0.0.1:15184', 'http://127.0.0.1:18011'].includes(url.origin)) external.push(request.url());
   });
   await page.goto('/');
   await page.getByLabel('Local application token').fill(process.env.TEST_APP_TOKEN);
@@ -25,15 +25,15 @@ test('synthetic one-year provider import feeds charts indicators and both metal 
   await page.getByLabel('Data source').selectOption(seeded.source_id);
   await page.getByRole('combobox', { name: 'Price basis', exact: true }).selectOption('PROVIDER_ADJUSTED');
   for (const method of ['SMA', 'EMA', 'RSI']) {
-    await page.getByRole('checkbox', { name: method === 'RSI' ? 'Show Wilder RSI' : 'Show ' + method, exact: true }).check();
     await page.getByLabel(method + ' lookback', { exact: true }).fill(method === 'SMA' ? '200' : method === 'EMA' ? '37' : '14');
   }
   await page.getByRole('button', { name: 'Apply research settings' }).click();
   await page.getByLabel('Chart engine',{exact:true}).selectOption('plotly');
   await expect(page.getByRole('img', { name: 'TATAGOLD price chart', exact: true }).locator('svg.main-svg').first()).toBeVisible();
   await expect(page.getByRole('img', { name: 'RSI / 1d', exact: true }).locator('svg.main-svg').first()).toBeVisible();
+  await page.getByText('Source quality and provenance',{exact:true}).click();
   await expect(page.getByText(/TIMESTAMP CONTRACT UNVERIFIED/).first()).toBeVisible();
-  await expect(page.getByRole('table', { name: 'Exact prices and server-calculated indicator values' })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Exact OHLCV, existing indicators and Package 2B calculations' })).toBeVisible();
   await page.getByRole('button', { name: 'ETF comparisons', exact: true }).click();
   for (const pair of [[0, 2], [1, 3]]) {
     for (let i = 0; i < 2; i++) {

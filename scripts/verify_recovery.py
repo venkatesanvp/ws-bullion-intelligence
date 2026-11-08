@@ -102,7 +102,7 @@ def main():
                 *(
                     [
                         "--project-name",
-                        "bullion-mvp05",
+                        "bullion-mvp06",
                         "--file",
                         "compose.engineering.yaml",
                         "--env-file",
@@ -154,7 +154,7 @@ def main():
         report.update(source_database=source, restored_database=target)
         credentials = {
             "host": "127.0.0.1",
-            "port": (15433 if ENGINEERING else 55433),
+            "port": (15443 if ENGINEERING else 55433),
             "user": local["POSTGRES_USER"],
             "password": local["POSTGRES_PASSWORD"],
         }
@@ -167,7 +167,7 @@ def main():
                 username=credentials["user"],
                 password=credentials["password"],
                 host="127.0.0.1",
-                port=(15433 if ENGINEERING else 55433),
+                port=(15443 if ENGINEERING else 55433),
                 database=name,
             ).render_as_string(hide_password=False)
 

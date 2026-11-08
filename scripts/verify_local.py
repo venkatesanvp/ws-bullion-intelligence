@@ -24,12 +24,12 @@ def main():
     parser.add_argument(
         "--browser",
         action="store_true",
-        help="Run real-backend Chromium workflow; requires --database and free ports 15174/18001/18002",
+        help="Run real-backend Chromium workflow; requires --database and free ports 15184/18011/18012",
     )
     parser.add_argument(
         "--engineering",
         action="store_true",
-        help="Synthetic MVP05 Compose project; never uses UAT env, ports or volumes",
+        help="Synthetic MVP06 Compose project; never uses UAT env, ports or volumes",
     )
     args = parser.parse_args()
     if args.browser and not args.database:
@@ -99,7 +99,7 @@ def main():
                 *(
                     [
                         "--project-name",
-                        "bullion-mvp05",
+                        "bullion-mvp06",
                         "--file",
                         "compose.engineering.yaml",
                         "--env-file",
@@ -121,7 +121,7 @@ def main():
             user = quote(local["POSTGRES_USER"], safe="")
             password = quote(local["POSTGRES_PASSWORD"], safe="")
             env["TEST_DATABASE_URL"] = (
-                f"postgresql+psycopg://{user}:{password}@127.0.0.1:{15433 if args.engineering else 55433}/bullion_test"
+                f"postgresql+psycopg://{user}:{password}@127.0.0.1:{15443 if args.engineering else 55433}/bullion_test"
             )
             env["DATABASE_URL"] = env["TEST_DATABASE_URL"]
             env["TEST_APP_TOKEN"] = TOKEN

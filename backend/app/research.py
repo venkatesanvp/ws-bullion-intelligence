@@ -27,7 +27,9 @@ def bounded_rows(db, instrument_id, source_id, basis, start=None, end=None):
     if memory is not None and memory.has_series(instrument_id, source_id):
         rows = memory.rows(instrument_id, source_id, basis, start, end)
         if len(rows) > MAX_POINTS:
-            raise APIError(422, "ANALYTICS_RANGE_LIMIT", "Complete chart input exceeds 10000 observations.")
+            raise APIError(
+                422, "ANALYTICS_RANGE_LIMIT", "Complete chart input exceeds 10000 observations."
+            )
         return rows
     statement = select(Observation).where(
         Observation.instrument_id == instrument_id,
@@ -274,6 +276,15 @@ def register_research(router, get_db, respond):
                     source.profile["data_class"],
                     source.profile.get("adjustment_definition_ref"),
                     points,
+                    tuple(
+                        date.fromisoformat(str(d))
+                        for d in (source.profile.get("calendar") or {}).get("session_dates", [])
+                    )
+                    or None,
+                    tuple(
+                        date.fromisoformat(str(d))
+                        for d in source.profile.get("known_break_dates", [])
+                    ),
                 )
             )
             meta.update(
@@ -295,7 +306,22 @@ def register_research(router, get_db, respond):
             )
             metadata.append(meta)
         try:
-            data = compare_series(inputs, body.start, body.end)
+            provisional = body.qualification_mode == "PROVISIONAL_AS_DELIVERED"
+            if provisional:
+                selected_sources = [
+                    series(db, x.instrument_id, x.source_id)[1] for x in body.series
+                ]
+                if (
+                    len({x.id for x in selected_sources}) != 1
+                    or any(x.source_kind != "DHANHQ" for x in selected_sources)
+                    or any(x.price_basis != "PROVIDER_ADJUSTED" for x in body.series)
+                ):
+                    raise APIError(
+                        422,
+                        "PROVISIONAL_SOURCE_MISMATCH",
+                        "Provisional comparison requires the same DhanHQ source and provider-delivered basis.",
+                    )
+            data = compare_series(inputs, body.start, body.end, provisional_adjustment=provisional)
         except DecimalException:
             raise APIError(
                 422, "NUMERIC_UNSUPPORTED", "Price comparison is unavailable for this input."
@@ -308,6 +334,7 @@ def register_research(router, get_db, respond):
                     "start": body.start,
                     "end": body.end,
                     "inputs": [m["input_fingerprint"] for m in metadata],
+                    "qualification_mode": body.qualification_mode,
                 }
             ),
             limitations=[
@@ -315,6 +342,16 @@ def register_research(router, get_db, respond):
                 "NO_INFERRED_DISTRIBUTIONS_OR_ADJUSTMENTS",
                 "NO_FUTURE_PERFORMANCE_INFERENCE",
                 "UNVERIFIED_FOR_REPLAY",
+                *(
+                    [
+                        "ADJUSTMENT_COMPATIBILITY_UNVERIFIED",
+                        "PROVISIONAL_AS_DELIVERED_NOT_TOTAL_RETURN",
+                    ]
+                    if provisional
+                    else []
+                ),
+                "VOLATILITY_USES_ONLY_MATCHED_VERIFIED_SINGLE_SESSION_INTERVALS",
+                "DRAWDOWN_OBSERVED_COMMON_CLOSES_ONLY",
             ],
         )
         for entry, meta in zip(data["series"], metadata):

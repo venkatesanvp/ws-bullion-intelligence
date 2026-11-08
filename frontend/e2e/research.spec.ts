@@ -1,10 +1,10 @@
 import { expect, test, APIRequestContext } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-const root='http://127.0.0.1:18001/api/v1';
+const root='http://127.0.0.1:18011/api/v1';
 function access(){
   const token=process.env.TEST_APP_TOKEN;
   if(!token || !process.env.TEST_DATABASE_URL)throw new Error('Explicit disposable PostgreSQL and synthetic test token required.');
-  return {token,headers:{Authorization:'Bearer '+token,Origin:'http://127.0.0.1:15174'}};
+  return {token,headers:{Authorization:'Bearer '+token,Origin:'http://127.0.0.1:15184'}};
 }
 async function fixture(request:APIRequestContext,withPrices=true,flat=false){
   const {headers}=access(),suffix=randomUUID().slice(0,8).toUpperCase();
@@ -29,14 +29,13 @@ test('synthetic chart, overlays, RSI, common-date comparison and unavailable bas
   test.setTimeout(90000);
   const sample=await fixture(request),{token}=access();
   const external:string[]=[];
-  page.on('request',request=>{const url=new URL(request.url());if(['http:','https:'].includes(url.protocol)&&!['http://127.0.0.1:15174','http://127.0.0.1:18001'].includes(url.origin))external.push(request.url());});
+  page.on('request',request=>{const url=new URL(request.url());if(['http:','https:'].includes(url.protocol)&&!['http://127.0.0.1:15184','http://127.0.0.1:18011'].includes(url.origin))external.push(request.url());});
   await page.goto('/');await page.getByLabel('Local application token').fill(token);await page.getByRole('button',{name:/Open Bullion Workspace/}).click();
   await page.getByRole('button',{name:'Research dashboard',exact:true}).click();
   await page.getByLabel('ETF listing').selectOption(sample.gold.id);await page.getByLabel('Data source').selectOption(sample.source.id);
-  await expect(page.getByRole('table',{name:'Exact prices and server-calculated indicator values'})).toBeVisible();
-  await expect(page.getByLabel('SMA lookback')).toHaveValue('');
+  await expect(page.getByRole('table',{name:'Exact OHLCV, existing indicators and Package 2B calculations'})).toBeVisible();
+  await expect(page.getByLabel('SMA lookback')).toHaveValue('20');
   for(const method of ['SMA','EMA','RSI']){
-    await page.getByRole('checkbox',{name:method==='RSI'?'Show Wilder RSI':'Show '+method,exact:true}).check();
     await page.getByLabel(method+' lookback',{exact:true}).fill('2');
   }
   await page.getByRole('button',{name:'Apply research settings'}).click();
@@ -46,12 +45,12 @@ test('synthetic chart, overlays, RSI, common-date comparison and unavailable bas
   await expect(priceChart.locator('svg.main-svg').first()).toBeVisible();
   await expect(priceChart.locator('.scatterlayer .trace')).toHaveCount(3);
   await expect(page.getByRole('img',{name:'RSI / 1d',exact:true}).locator('svg.main-svg').first()).toBeVisible();
-  await page.getByRole('checkbox',{name:'Show SMA',exact:true}).uncheck();
-  await expect(page.getByRole('columnheader',{name:'SMA (2)',exact:true})).toHaveCount(0);
+  await page.getByRole('checkbox',{name:'SMA',exact:true}).uncheck();
+  await expect(page.getByRole('columnheader',{name:'SMA (2)',exact:true})).toHaveCount(1);
   await page.getByLabel('Research from',{exact:true}).fill('2026-01-03');await page.getByLabel('Research through',{exact:true}).fill('2026-01-04');
   await page.getByRole('button',{name:'Apply research settings'}).click();
-  const table=page.getByRole('table',{name:'Exact prices and server-calculated indicator values'});
-  await expect(table.getByRole('row').filter({hasText:'2026-01-03'}).locator('td').nth(2)).toHaveText('13.000000000000');
+  const table=page.getByRole('table',{name:'Exact OHLCV, existing indicators and Package 2B calculations'});
+  await expect(table.getByRole('row').filter({hasText:'2026-01-03'}).locator('td').nth(4)).toHaveText('13.000000000000');
   await page.getByLabel('Chart engine',{exact:true}).selectOption('plotly');
   await expect(priceChart.locator('svg.main-svg').first()).toBeVisible();
   await page.screenshot({path:'../artifacts/step4-research-desktop.png',fullPage:true});
@@ -78,7 +77,7 @@ test('synthetic chart, overlays, RSI, common-date comparison and unavailable bas
   await expect(page.getByText(/Price-only change is not total return/)).toBeVisible();
   await page.screenshot({path:'../artifacts/step4-comparison-desktop.png',fullPage:true});
   await page.getByRole('combobox',{name:'Comparison basis 1',exact:true}).selectOption('UNKNOWN');await page.getByRole('button',{name:'Compare prices',exact:true}).click();
-  await expect(page.getByText('UNAVAILABLE',{exact:true})).toBeVisible();await expect(page.getByText(/BASIS_UNVERIFIED/).first()).toBeVisible();
+  await page.getByText('Diagnostic codes',{exact:true}).click();await expect(page.getByText('UNAVAILABLE',{exact:true})).toBeVisible();await expect(page.getByText(/BASIS_UNVERIFIED/).first()).toBeVisible();
   await expect(page.getByRole('img',{name:'Price-only common-date comparison',exact:true})).toHaveCount(0);
   expect(external).toEqual([]);
   expect(await page.evaluate(()=>localStorage.length+sessionStorage.length)).toBe(0);
@@ -88,10 +87,10 @@ test('synthetic missing history and flat RSI remain unavailable',async({page,req
   const empty=await fixture(request,false),flat=await fixture(request,true,true),{token}=access();
   await page.goto('/');await page.getByLabel('Local application token').fill(token);await page.getByRole('button',{name:/Open Bullion Workspace/}).click();await page.getByRole('button',{name:'Research dashboard',exact:true}).click();
   await page.getByLabel('ETF listing').selectOption(empty.gold.id);await page.getByLabel('Data source').selectOption(empty.source.id);
-  await expect(page.getByText('No observations are available for this research range.',{exact:true})).toBeVisible();
+  await expect(page.getByText('No completed observations for this selection.',{exact:true})).toBeVisible();
   await page.getByLabel('ETF listing').selectOption(flat.gold.id);await page.getByLabel('Data source').selectOption(flat.source.id);
-  await page.getByRole('checkbox',{name:'Show Wilder RSI',exact:true}).check();await page.getByLabel('RSI lookback',{exact:true}).fill('2');await page.getByRole('button',{name:'Apply research settings'}).click();
-  await expect(page.getByText('UNAVAILABLE: FLAT_WINDOW | OBSERVED_BARS',{exact:true})).toBeVisible();
+  await page.getByLabel('RSI lookback',{exact:true}).fill('2');await page.getByRole('button',{name:'Apply research settings'}).click();
+  await expect(page.getByRole('checkbox',{name:'RSI',exact:true})).toBeDisabled();
   await expect(page.getByText('Unavailable: FLAT_WINDOW',{exact:true})).toHaveCount(2);
   await expect(page.getByRole('img',{name:flat.gold.symbol+' Wilder RSI',exact:true})).toHaveCount(0);
 });

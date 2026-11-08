@@ -2,6 +2,7 @@ import DataViewport, {DATA_PAGE_SIZE} from './DataViewport';
 import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMarketRefresh } from './useMarketRefresh';
 import ResearchDashboard from './ResearchDashboard';
+import {ResearchPreferencesProvider} from './researchPreferences';
 import ComparisonPanel from './ComparisonPanel';
 import { allPages, canResearch, ensureProviderHistory, acquisitionMessage, hasLiveRetrieval, ApiError, Batch, Call, client, Instrument, Issue, Observation, SeriesMeta, Source, Watchlist } from './api';
 
@@ -39,7 +40,7 @@ export default function App() {
           {error && <div role="alert" className="notice error">{error}</div>}
           <button className="primary" disabled={connecting}>{connecting ? 'Checking connection…' : 'Open Bullion Workspace →'}</button>
         </form><p className="footnote">Read-only bullion research. Provider credentials remain on the backend; source qualification stays visible.</p></section>
-      : <Workbench token={token}/>}
+      : <ResearchPreferencesProvider><Workbench token={token}/></ResearchPreferencesProvider>}
     </main>
   </div>;
 }
@@ -81,12 +82,12 @@ function Workbench({ token }: { token: string }) {
     {error && <div role="alert" className="notice error">{error}<button className="text-button" onClick={() => { setError(''); refresh().catch(e => setError(describe(e))); }}>Retry connection</button></div>}
     {busy && <div role="status" className="loading">Updating workspace…</div>}
     {(tab === 'History & quality' || tab === 'CSV imports' || tab === 'Research dashboard') && <section className="card selectors">
-      {tab === 'Research dashboard' && <Field label="Research metal filter"><select value={researchMetal} onChange={e => { const metal = e.target.value; setResearchMetal(metal); if (metal !== 'ALL' && selected?.metal !== metal) setInstrumentId(''); }}><option value="ALL">Gold and Silver</option><option value="GOLD">Gold</option><option value="SILVER">Silver</option></select></Field>}
+      {tab === 'Research dashboard' && <Field label="Research metal filter"><select value={researchMetal} onChange={e => { const metal = e.target.value; setResearchMetal(metal); if (metal !== 'ALL' && selected?.metal !== metal) setInstrumentId(instruments.find(i=>i.metal===metal)?.id||''); }}><option value="ALL">Gold and Silver</option><option value="GOLD">Gold</option><option value="SILVER">Silver</option></select></Field>}
       <Field label="ETF listing"><select value={instrumentId} onChange={e => setInstrumentId(e.target.value)}><option value="">Select listing</option>{instruments.filter(i => tab !== 'Research dashboard' || researchMetal === 'ALL' || i.metal === researchMetal).map(i => <option key={i.id} value={i.id}>{i.symbol} · {i.exchange} · {i.metal}{!i.active ? ' · inactive' : ''}</option>)}</select></Field>
       <Field label="Data source"><select value={sourceId} onChange={e => setSourceId(e.target.value)}><option value="">Select source</option>{sources.map(s => <option key={s.id} value={s.id}>{s.label} · {s.profile.data_class} · {s.qualification}</option>)}</select></Field>
       <Field label="Price basis"><select value={basis} onChange={e => setBasis(e.target.value)}><option value="RAW_CLOSE">Raw close</option><option value="PROVIDER_ADJUSTED">Provider adjusted</option><option value="UNKNOWN">Unknown basis</option></select></Field>
     </section>}
-    {tab === 'Research dashboard' && <ResearchDashboard key={instrumentId + sourceId + basis + revision} api={api} instrument={selected} source={source} basis={basis}/>}
+    {tab === 'Research dashboard' && <ResearchDashboard api={api} instrument={selected} source={source} basis={basis}/>}
     {tab === 'ETF comparisons' && <ComparisonPanel key={revision} api={api} instruments={instruments} sources={sources}/>}
     {tab === 'History & quality' && <History key={instrumentId + sourceId + basis + revision} api={api} instrument={selected} source={source} basis={basis}/>}
     {tab === 'CSV imports' && <Imports key={instrumentId + sourceId + basis} api={api} instrument={selected} source={source} basis={basis} refreshed={refresh}/>}

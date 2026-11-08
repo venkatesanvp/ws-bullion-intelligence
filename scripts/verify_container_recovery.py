@@ -1,4 +1,4 @@
-"""MVP05 isolated synthetic container recovery; never controls the owner project."""
+"""MVP06 isolated synthetic container recovery; never controls the owner project."""
 
 import pathlib
 import json
@@ -25,12 +25,12 @@ def compose(*args):
 
 def api(path, payload=None):
     req = urllib.request.Request(
-        "http://127.0.0.1:18000/api/v1" + path,
+        "http://127.0.0.1:18010/api/v1" + path,
         data=json.dumps(payload).encode() if payload is not None else None,
         headers={
             "Authorization": "Bearer " + eng.SYNTHETIC["LOCAL_APP_TOKEN"],
             "Content-Type": "application/json",
-            "Origin": "http://127.0.0.1:15173",
+            "Origin": "http://127.0.0.1:15183",
         },
     )
     with urllib.request.urlopen(req, timeout=5) as resp:
@@ -42,7 +42,7 @@ def ready():
     while time.monotonic() < limit:
         try:
             api("/health/ready")
-            with urllib.request.urlopen("http://127.0.0.1:15173/_health", timeout=3) as r:
+            with urllib.request.urlopen("http://127.0.0.1:15183/_health", timeout=3) as r:
                 assert r.status == 200
             return
         except Exception:
@@ -60,7 +60,7 @@ api(
     "/instruments",
     {
         "exchange": "XNSE",
-        "symbol": "MVP05_SYNTH_" + str(time.time_ns())[-8:],
+        "symbol": "MVP06_SYNTH_" + str(time.time_ns())[-8:],
         "name": "SYNTHETIC TEST RECOVERY MARKER NOT A REAL ETF",
         "metal": "GOLD",
         "currency": "INR",
@@ -89,11 +89,11 @@ t = time.monotonic()
 compose("stop", "--timeout", "20", "ui", "api", "db")
 exits = json.loads(
     subprocess.check_output(
-        [eng.DOCKER, "inspect", *["bullion-mvp05-" + s + "-1" for s in ["api", "ui", "db"]]]
+        [eng.DOCKER, "inspect", *["bullion-mvp06-" + s + "-1" for s in ["api", "ui", "db"]]]
     )
 )
 api_logs = subprocess.check_output(
-    [eng.DOCKER, "logs", "--tail", "20", "bullion-mvp05-api-1"], stderr=subprocess.STDOUT
+    [eng.DOCKER, "logs", "--tail", "20", "bullion-mvp06-api-1"], stderr=subprocess.STDOUT
 ).decode()
 assert exits[0]["State"]["ExitCode"] in {0, 143} and "Application shutdown complete." in api_logs
 assert all(x["State"]["ExitCode"] == 0 for x in exits[1:])
@@ -131,5 +131,5 @@ result = {
     "catalog_sha": before,
     "scope": "Container restart preserves synthetic SQL catalogue; populated RAM handoff/failure tests run separately at HTTP boundary. Direct unguarded API restart loses RAM by design; no durable cache claim.",
 }
-(R / "artifacts/mvp05-container-recovery.json").write_text(json.dumps(result, indent=2))
+(R / "artifacts/mvp06-container-recovery.json").write_text(json.dumps(result, indent=2))
 print(json.dumps(result, indent=2))

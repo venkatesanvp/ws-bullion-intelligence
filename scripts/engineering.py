@@ -1,4 +1,4 @@
-"""MVP05 synthetic engineering lifecycle; refuses owner env/shared runtime configuration."""
+"""MVP06 synthetic engineering lifecycle; refuses owner env/shared runtime configuration."""
 
 import argparse
 import json
@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-PROJECT = "bullion-mvp05"
+PROJECT = "bullion-mvp06"
 DOCKER = shutil.which("docker") or "C:/Program Files/Docker/Docker/resources/bin/docker.exe"
 SYNTHETIC = {
     "POSTGRES_USER": "engineering",
@@ -50,7 +50,7 @@ def validate_config(config):
     if config.get("name") != PROJECT:
         raise IsolationError("Unexpected engineering project")
     services = config["services"]
-    expected = {"api": 18000, "ui": 15173, "test-db": 15433}
+    expected = {"api": 18010, "ui": 15183, "test-db": 15443}
     if set(services) != {"db", "migrate", "api", "ui", "test-db"}:
         raise IsolationError("Unexpected engineering services")
     for name, service in services.items():
@@ -60,7 +60,7 @@ def validate_config(config):
             or service.get("container_name")
         ):
             raise IsolationError("Shared/privileged runtime rejected")
-        if not service.get("image", "").startswith("bullion-mvp05-"):
+        if not service.get("image", "").startswith("bullion-mvp06-"):
             raise IsolationError("Engineering image name required")
         for port in service.get("ports", []):
             if port.get("host_ip") != "127.0.0.1" or str(port.get("published")) != str(
@@ -160,7 +160,7 @@ def main():
             "setup": [],
             "status": ["ps", "--all"],
             "build": ["build", "db", "api", "ui"],
-            "start": ["--profile", "test", "up", "-d", "--no-build", "--wait"],
+            "start": ["--profile", "test", "up", "-d", "--no-build", "--pull", "never", "--wait"],
             "stop": ["--profile", "test", "stop", "--timeout", "20"],
             "restart": [
                 "restart",

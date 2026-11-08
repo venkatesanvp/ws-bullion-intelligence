@@ -183,6 +183,8 @@ class ComparisonSelection(Strict):
 
 
 class ComparisonRequest(Strict):
+    qualification_mode: Literal["STRICT_COMPATIBILITY", "PROVISIONAL_AS_DELIVERED"] = "STRICT_COMPATIBILITY"
+    acknowledge_source_limitations: bool = False
     series: list[ComparisonSelection] = Field(min_length=2, max_length=10)
     start: date
     end: date
@@ -190,6 +192,8 @@ class ComparisonRequest(Strict):
 
     @model_validator(mode="after")
     def coherent_comparison(self):
+        if (self.qualification_mode == "PROVISIONAL_AS_DELIVERED") != self.acknowledge_source_limitations:
+            raise ValueError("Provisional comparison requires explicit source-limitation acknowledgement")
         if self.start > self.end or len({s.instrument_id for s in self.series}) != len(self.series):
             raise ValueError("Select distinct listings and a coherent explicit period")
         if self.assessment_as_of is not None and (
