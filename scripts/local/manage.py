@@ -241,7 +241,18 @@ def main(argv=None):
             )
         elif args.action in {"start", "restart"}:
             verify_ports(current)
-            # This payload stays only in this process's RAM. No file/SQL/cache snapshot is created.
+            replacing_api = current["api"]["state"] == "running" and (
+                args.action == "start" or args.service in (None, "api")
+            )
+            if replacing_api and not interactive():
+                raise LocalError("Use an interactive terminal so the RAM recovery guard can retain data if recovery is needed.")
+            if args.action == "start":
+                print("Building the latest local application; existing services stay running.")
+                compose("build", "db", "api", "ui")
+                if original != hashlib.sha256((ROOT / ".env").read_bytes()).hexdigest():
+                    raise LocalError("Environment changed during build; active services were not replaced.")
+            # Capture immediately before replacement, after the potentially lengthy build.
+            # This payload stays only in this process's RAM. No file/SQL snapshot is created.
             transfer = None
             if current["api"]["state"] == "running" and (
                 args.action == "start" or args.service in (None, "api")
@@ -255,7 +266,7 @@ def main(argv=None):
                 )
             try:
                 if args.action == "start":
-                    compose("up", "-d", "--build", "--wait", "--wait-timeout", "120")
+                    compose("up", "-d", "--no-build", "--pull", "never", "--wait", "--wait-timeout", "120")
                 else:
                     targets = [args.service] if args.service else list(SERVICES)
                     compose("restart", "--timeout", "20", *targets)

@@ -272,3 +272,27 @@ def test_complete_handoff_fingerprint_includes_budget_and_provenance(manager):
     assert manager.fingerprint(manager.stable_transfer(first)) != manager.fingerprint(
         manager.stable_transfer(remapped)
     )
+
+
+def test_start_builds_before_snapshot_and_uses_built_images(manager, monkeypatch):
+    calls = []
+    empty = {"daily": {"series": []}, "quotes": [], "candles": []}
+    monkeypatch.setattr(manager, "compose", lambda *args: calls.append(("compose", args)))
+    monkeypatch.setattr(manager, "api", lambda *args: calls.append(("snapshot", args[1])) or empty)
+    assert manager.main(["start"]) == 0
+    assert calls[0] == ("compose", ("build", "db", "api", "ui"))
+    assert calls[1][0] == "snapshot"
+    up = next(c[1] for c in calls if c[0] == "compose" and c[1][0] == "up")
+    assert "--no-build" in up and "--pull" in up and "never" in up
+    assert "--build" not in up
+
+
+def test_failed_update_build_does_not_snapshot_or_replace_active_services(manager, monkeypatch):
+    calls = []
+    def failed(*args):
+        calls.append(args)
+        raise manager.LocalError("Synthetic build failure")
+    monkeypatch.setattr(manager, "compose", failed)
+    monkeypatch.setattr(manager, "api", lambda *args: pytest.fail("No cache request after failed build"))
+    assert manager.main(["start"]) == 1
+    assert calls == [("build", "db", "api", "ui")]

@@ -1,6 +1,6 @@
 # Bullion Intelligence user guide
 
-Engineering candidate: MVP-06. Owner retesting is pending. This is a private local research tool, not an order-entry system. Training images use generated SYNTHETIC TEST data only.
+Local personal research application with MVP-05 and MVP-06 functionality. This is a research tool, not an order-entry system. Training images use generated SYNTHETIC TEST data only.
 
 ## 1. Application overview
 
@@ -10,7 +10,7 @@ Research results describe available observations. They do not establish data lic
 
 ## 2. Local startup
 
-The owner's running workspace has not been upgraded by MVP-06. Do not restart or replace it to try this candidate: transient prices and their original first-seen evidence can be lost. Arrange a separately authorized handoff with the existing RAM recovery guard before any runtime change. See docs/04-planning/MVP_RELEASE_READINESS.md and the existing startup/recovery instructions.
+Open http://127.0.0.1:5173. To update from the code already checked out locally, open PowerShell in C:/ws-bullion/bullion-intelligence and run .\scripts\local\update.ps1. It checks prerequisites, builds before interrupting the app, preserves .env and the PostgreSQL volume, and transfers eligible cached prices/provenance through RAM. Keep the terminal open until it reports success. If recovery is needed, keep that process alive and follow its retry instructions. It never fetches or merges Git changes and never downloads prices to rebuild a lost cache. Forecast session records expire on restart; this command does not invent lost provenance. Avoid an unmanaged Docker stop/restart or power loss, which loses transient memory.
 
 Engineers use a separate worktree without the owner's .env: run .venv/Scripts/python.exe scripts/engineering.py setup, then build and start. The isolated engineering UI is http://127.0.0.1:15183; its database, ports and synthetic configuration are separate from owner UAT. Run the test action for disposable synthetic verification. This is not a command to deploy the owner workspace.
 
@@ -88,11 +88,11 @@ B01/B02 performance is compared on common eligible origins. Read MAE, RMSE, sign
 
 ## 11. Data-quality limitations
 
-Source-use, storage, retention and backup rights require applicable evidence. This candidate introduces no persistent real-market storage. Transient results and preferences can be lost on process exit. Recovery receipts do not reconstruct already lost provenance.
+Source-use, storage, retention and backup rights require applicable evidence. The application introduces no persistent real-market storage. Transient results and preferences can be lost on process exit. Recovery receipts do not reconstruct already lost provenance.
 
 Provider-adjustment semantics, timestamps, finality, revision behavior and strict historical point-in-time evidence retain their existing qualification gaps. Matching dates is not a total-return qualification. Forecasts can remain unavailable for a restricted source, incomplete calendar, known break or insufficient lookback.
 
-MVP-05 open container security findings remain tracked in MVP_SECURITY_ASSESSMENT.md. MVP-06 is not security clearance, an owner acceptance decision, a deployment or a release.
+MVP-05 open container security findings remain tracked in MVP_SECURITY_ASSESSMENT.md. Scanner findings remain documented and are assessed for the local configuration; they do not by themselves prevent a personal local update.
 
 ## 12. Troubleshooting
 
@@ -120,7 +120,7 @@ Will preferences survive a restart? No. Preferences are kept only in the unlocke
 
 ## Owner retest checklist
 
-UAT-001: On an explicitly deployed candidate, choose each of the four ETFs repeatedly, switch all research tabs, refresh a view and trigger a recoverable failure. Confirm the Market Snapshot landmark and navigation remain accessible with loading/error/empty explanations.
+UAT-001: In the running local application, choose each of the four ETFs repeatedly, switch all research tabs, refresh a view and trigger a recoverable failure. Confirm the Market Snapshot landmark and navigation remain accessible with loading/error/empty explanations.
 
 UAT-002: Set EMA to 23 and hide it, Apply, visit History and quality, choose a Gold ETF and return. Confirm period 23 and visibility survive, data belongs to the new ETF, and six catalogue entries remain.
 

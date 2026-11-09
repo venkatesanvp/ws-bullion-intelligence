@@ -1,12 +1,16 @@
 # Bullion Intelligence - VS-01 research workbench
 
+## Open and update locally
+
+Open http://127.0.0.1:5173. From PowerShell in the repository, run `.\scripts\local\update.ps1` to build and safely restart the locally checked-out version. It preserves `.env`, the database volume and eligible RAM-cached market observations; keep the terminal open through the recovery guard. It does not fetch/merge Git changes or automatically refill lost data. Session forecasts remain transient and expire on restart. See the [user guide](docs/06-user-guide/BULLION_INTELLIGENCE_USER_GUIDE.md).
+
 Local Gold/Silver ETF research with source/provenance inspection, exact Decimal technical analytics, charts and comparisons, and transient baseline forecasting/performance intelligence. **Packages 1-6 are implemented; owner UAT, full source qualification, statistical validation, retention rights and VS-01 acceptance remain open.** No autonomous trading or new ML model is included.
 
 [Package 6 implementation, verification and UAT](docs/04-planning/FORECASTING_PACKAGE_6_CHECKPOINT.md) | [Four-ETF qualification](docs/04-planning/FORECASTING_PACKAGE_5_QUALIFICATION.md) | [Forward-evaluation readiness](docs/04-planning/FORECASTING_PACKAGE_6_FORWARD_READINESS.md) | [Requirements baseline](docs/01-requirements/REQUIREMENTS_BASELINE.md)
 
 Research Dashboard includes Daily, Intraday, Technical Analytics and Forecasting Research. B01/B02 provide price endpoints; B03 provides volatility only. Historical modes remain separate: strict point in time, explicit acknowledged conditional replay and labeled synthetic verification. Scorecards compare B01/B02 only on matched eligible origins, disclose overlapping/disjoint windows and do not estimate independent evidence or declare a winning model. Regime analysis is optional and uses fixed cutoff-context rules. Results/registries are bounded process memory, lost on restart/expiry.
 
-## MVP05 engineering checkpoint
+## Historical MVP05 engineering checkpoint
 
 The functional 52-file MVP is committed as d781e5b. Subsequent security/integrity changes are isolated in C:/ws-bullion/bullion-mvp05 and pushed only to the existing MVP feature branch; protected owner UAT is not updated. Final verification:959 backend/62 frontend/11 browser tests passed, build/CSP/synthetic recovery/dependency/credential checks passed. Candidate images have zero critical findings; six Debian high instances remain open, plus one branch-fixed Alpine scanner high. **Release security clearance and owner acceptance remain blocked.** See [current engineering checkpoint](docs/04-planning/MVP_IMPLEMENTATION_CHECKPOINT.md), [individual security dispositions](docs/04-planning/MVP_SECURITY_ASSESSMENT.md) and [gates](docs/04-planning/MVP_RELEASE_READINESS.md). Use only the engineering runner described in the local deployment document while UAT is protected.
 
@@ -87,15 +91,7 @@ Run lint/backend units/components/build without PostgreSQL:
 .\.venv\Scripts\python.exe scripts/verify_local.py
 ```
 
-For cumulative real PostgreSQL/browser verification, stop the normal UI first so browser port 5173 is free; ports 55433 and 8001 must also be available:
-
-```powershell
-docker compose stop ui
-.\.venv\Scripts\python.exe scripts/verify_local.py --database --browser
-docker compose up -d --no-deps --wait ui
-```
-
-Tests use only disposable local `bullion_test` on loopback 55433 with tmpfs; guards refuse nonlocal/non-`_test` targets. Browser tests use separate APIs on 8001/8002 and Vite on 5173; the normal API and its RAM cache stay running. They use real PostgreSQL/backend requests and visibly synthetic fixtures. Reports/screenshots/traces stay in ignored `artifacts/` and frontend report directories.
+For isolated PostgreSQL/browser verification without stopping the local app, use the separate engineering worktree and run `.venv/Scripts/python.exe scripts/engineering.py test`. Its synthetic database uses15443, UI15184 and APIs18011/18012; the normal5173/8000 services and prices are untouched. Do not run it against the owner database. Reports and traces remain ignored.
 
 Package 6 verification reported **901 backend, 51 component and nine Chromium workflows passed, none failed/skipped**, plus lint, production build, containers, dependency and credential checks. The source-control checkpoint reruns those checks before committing. Existing deprecation and Plotly chunk-size warnings remain. Historical package checkpoints retain their dated results; they are not fresh acceptance claims.
 
@@ -112,7 +108,7 @@ The provider-attempt counter changed from23to24 between guarded phases during Pa
 - `backend/app/`: strict input/access/CSV/persistence/quality plus pure Decimal arithmetic and read-only snapshot-consistent research orchestration.
 - `backend/tests/`: independent arithmetic references, parsing/access, actual PostgreSQL transactions/concurrency, provenance, snapshots and research API cases.
 - `frontend/src/`: existing workflows plus local charts, research controls, exact tables, comparison/quality disclosures and component regressions.
-- `frontend/e2e/`: eleven workflows covering workspace, provider/session/streaming, daily/intraday/technical charts and forecasting/performance against isolated UI/API/PostgreSQL.
+- `frontend/e2e/`: fourteen workflows covering workspace, provider/session/streaming, daily/intraday/technical charts and forecasting/performance against isolated UI/API/PostgreSQL.
 - `scripts/`: secret initialization, regression driver and isolated recovery verifier. No new service or migration is needed for research.
 
 All paths below use `/api/v1`:
@@ -131,4 +127,4 @@ All paths below use `/api/v1`:
 
 See [design contracts](docs/03-design/VS-01_DETAILED_DESIGN.md), [acceptance dispositions](docs/03-design/VS-01_ACCEPTANCE_AND_TEST_PLAN.md), [dependency review](docs/04-planning/VS-01_SECURITY_REVIEW.md) and [container controls](docs/04-planning/VS-01_CONTAINER_REPRODUCIBILITY.md). Runtime images/uv are digest pinned; dependencies/browser are locked. Verification establishes tested-platform dependency selection/startup, not byte-identical image builds or OS-image vulnerability clearance.
 
-The next gates are owner UAT, source/finality/adjustment/vintage/calendar qualification, explicit retention rights and a reviewed prospective evidence/statistical protocol. Durable forward evaluation is proposed only; Packages1-6 do not authorize persistent market-data or forecast-history storage. Later strategy/risk/portfolio/AI/ML/trading features require separate scope. Requirements baseline and approved decisions remain unchanged; no full VS-01, model-reliability or production-readiness acceptance is declared.
+For personal local use, follow Code -> Test -> Build -> Run -> Use -> Improve. Source/finality/adjustment/vintage/calendar limitations remain visible in research results; retention permission is still required before durable provider-data storage. Durable forward evaluation is proposed only; Packages1-6 do not authorize persistent market-data or forecast-history storage. Later strategy/risk/portfolio/AI/ML/trading features require separate scope. Requirements baseline and approved decisions remain unchanged; no full VS-01, model-reliability or production-readiness acceptance is declared.
