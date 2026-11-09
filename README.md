@@ -108,7 +108,7 @@ The provider-attempt counter changed from23to24 between guarded phases during Pa
 - `backend/app/`: strict input/access/CSV/persistence/quality plus pure Decimal arithmetic and read-only snapshot-consistent research orchestration.
 - `backend/tests/`: independent arithmetic references, parsing/access, actual PostgreSQL transactions/concurrency, provenance, snapshots and research API cases.
 - `frontend/src/`: existing workflows plus local charts, research controls, exact tables, comparison/quality disclosures and component regressions.
-- `frontend/e2e/`: fourteen workflows covering workspace, provider/session/streaming, daily/intraday/technical charts and forecasting/performance against isolated UI/API/PostgreSQL.
+- `frontend/e2e/`: fifteen workflows covering workspace, provider/session/streaming, daily/intraday/technical charts and forecasting/performance against isolated UI/API/PostgreSQL.
 - `scripts/`: secret initialization, regression driver and isolated recovery verifier. No new service or migration is needed for research.
 
 All paths below use `/api/v1`:

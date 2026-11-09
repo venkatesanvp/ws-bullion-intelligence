@@ -12,6 +12,7 @@ const colors={SMA:'#356b97',EMA:'#267b67',upper:'#9d7228',lower:'#9d7228',middle
 const key=(t:Time):string=>typeof t==='number'?new Date(t*1000).toISOString():typeof t==='string'?t:`${t.year}-${String(t.month).padStart(2,'0')}-${String(t.day).padStart(2,'0')}`;
 type PriceSeries=ISeriesApi<'Candlestick'>;type Line=ISeriesApi<'Line'>;
 export default function LightweightResearchChart({result,endpoints=NO_ENDPOINTS,onUnavailable,visibility}:{result:TechnicalResult;endpoints?:ForecastEndpoint[];visibility?:{hidden:string[];setHidden:Dispatch<SetStateAction<string[]>>};onUnavailable?:(message:string)=>void}){
+ const markerCleanup=useRef<(()=>void)|null>(null);
  const host=useRef<HTMLDivElement>(null),chart=useRef<IChartApi|null>(null),state=useRef<{candles:PriceSeries;close:Line;volume:ISeriesApi<'Histogram'>;histogram:ISeriesApi<'Histogram'>;lines:Line[]}|null>(null),identity=useRef('');
  const [selected,setSelected]=useState<string|null>(null),[problem,setProblem]=useState(''),[range,setRange]=useState(''),[theme,setTheme]=useState<'light'|'dark'>('light');
  const [storedHidden,setStoredHidden]=useResearchPreference<string[]>('chartHiddenIndicators',[]);const hidden=visibility?.hidden||storedHidden,setHidden=visibility?.setHidden||setStoredHidden;const daily=result.timeframe==='1d';const fallback=useRef(onUnavailable);fallback.current=onUnavailable;
@@ -32,11 +33,14 @@ export default function LightweightResearchChart({result,endpoints=NO_ENDPOINTS,
    c.subscribeCrosshairMove(crosshair);c.timeScale().subscribeVisibleLogicalRangeChange(visible);
    state.current={candles,close,volume,histogram,lines:[]};identity.current='';setSelected(null);setProblem('');
   }catch{setProblem('Financial chart unavailable. Exact values remain available.');fallback.current?.('Financial chart unavailable; Plotly fallback selected.');}
-  return()=>{alive=false;if(frame!==undefined)cancelAnimationFrame(frame);if(c){c.unsubscribeCrosshairMove(crosshair);c.timeScale().unsubscribeVisibleLogicalRangeChange(visible);c.remove();}chart.current=null;state.current=null;};
+  // Marker detachment schedules a redraw; remove() must cancel it before canvases are disposed.
+  return()=>{alive=false;if(frame!==undefined)cancelAnimationFrame(frame);markerCleanup.current?.();if(c){c.unsubscribeCrosshairMove(crosshair);c.timeScale().unsubscribeVisibleLogicalRangeChange(visible);c.remove();}chart.current=null;state.current=null;};
  },[daily]);
  useEffect(()=>{chart.current?.applyOptions({layout:{textColor:theme==='dark'?'#e4ebdf':'#3a5143',background:{type:ColorType.Solid,color:theme==='dark'?'#18241f':'#ffffff'}},grid:{vertLines:{color:theme==='dark'?'#2d3d33':'#eef1e8'},horzLines:{color:theme==='dark'?'#2d3d33':'#eef1e8'}}});},[theme,daily]);
  useEffect(()=>{
   const c=chart.current,s=state.current;if(!c||!s)return;const markers:ISeriesMarkersPluginApi<Time>[]=[];
+  let detached=false;const detachMarkers=()=>{if(detached)return;detached=true;for(const marker of markers)marker.detach();if(markerCleanup.current===detachMarkers)markerCleanup.current=null;};
+  markerCleanup.current=detachMarkers;
   try{
    const rows=orderedCandles(result),gaps=result.gap_times||[],seen=new Set(rows.map(r=>r.time));
    const timeline=[...rows.map(row=>({date:row.time,row})),...gaps.filter(t=>!seen.has(t)).map(date=>({date,row:null}))].sort((a,b)=>a.date.localeCompare(b.date));
@@ -68,7 +72,7 @@ export default function LightweightResearchChart({result,endpoints=NO_ENDPOINTS,
    const next=result.instrument_id+'|'+result.timeframe;if(identity.current!==next){c.timeScale().fitContent();identity.current=next;setSelected(null);}setProblem('');
    host.current?.setAttribute('data-ready','true');host.current?.setAttribute('data-bars',String(rows.length));
   }catch{setProblem('Chart data could not be rendered safely. Exact values remain available.');fallback.current?.('Financial chart rejected the data; Plotly fallback selected.');}
-  return()=>{for(const marker of markers)marker.detach();};
+  return detachMarkers;
  },[result,endpoints,hidden,daily]);
  const current=result.candles.find(r=>daily?r.time===selected:new Date(r.time).toISOString()===selected);
  function zoom(factor:number){const scale=chart.current?.timeScale(),v=scale?.getVisibleLogicalRange();if(!scale||!v)return;const mid=(v.from+v.to)/2,half=(v.to-v.from)*factor/2;scale.setVisibleLogicalRange({from:mid-half,to:mid+half});}

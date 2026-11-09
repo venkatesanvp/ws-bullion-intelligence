@@ -49,3 +49,10 @@ test('MVP06 a malformed snapshot stays inside its recoverable section boundary',
  await page.getByRole('button',{name:'Technical analytics',exact:true}).click();await page.getByRole('button',{name:'Daily research',exact:true}).click();
  await expect(page.getByText(/Market snapshot is unavailable/)).toBeVisible();await expect(page.getByRole('button',{name:'Try this section again',exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'Forecasting Research',exact:true})).toBeEnabled();await expect(page.getByRole('checkbox',{name:'MACD',exact:true})).toBeVisible();
 });
+
+test('forecast markers dispose before native canvases during rapid navigation and mobile resize',async({page,request})=>{
+ test.setTimeout(90000);const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await open(page,request);
+ await page.getByRole('button',{name:'Forecasting Research',exact:true}).click();await expect(page.getByRole('button',{name:'Generate Forecast',exact:true})).toBeEnabled();await page.getByLabel('Forecast lookback closes',{exact:true}).fill('20');await page.getByRole('button',{name:'Generate Forecast',exact:true}).click();await expect(page.getByRole('region',{name:'Current baseline forecasts',exact:true})).toContainText('B01');
+ await page.getByText('6. Evaluate historical performance - Advanced Research',{exact:true}).click();await page.getByRole('button',{name:'Run Historical Evaluation',exact:true}).click();await expect(page.getByRole('region',{name:'Historical forecast versus actual endpoints',exact:true}).locator('canvas').first()).toBeVisible();
+ for(const tab of ['History & quality','ETF comparisons','Research dashboard'])await page.getByRole('button',{name:tab,exact:true}).click();await page.setViewportSize({width:390,height:844});await expect(page.getByRole('button',{name:'Generate Forecast',exact:true})).toBeEnabled();await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));expect(errors).toEqual([]);
+});
